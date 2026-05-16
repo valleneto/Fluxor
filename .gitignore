@@ -1,0 +1,10 @@
+.DS_Store
+.venv/
+Takeout/
+ORGANIZADO_TESTE/
+*_TESTE/
+*.csv
+*.txt
+_REFERENCIAS_INTERNET/
+AMOSTRA*
+INVENTARIOS/
