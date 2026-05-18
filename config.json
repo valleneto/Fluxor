@@ -1,0 +1,7 @@
+{
+  "source": "/Volumes/SAMSUNG/NETO/FOTOS",
+  "destination": "/Users/heitor/Projetos/FLUXOR_OUTPUT",
+  "mode": "analyze",
+  "categories": ["photos", "videos", "documents", "audio"],
+  "safe_mode": true
+}
