@@ -16,7 +16,15 @@ def main():
     banner()
 
     if len(sys.argv) < 2:
-        print("Comandos: scan, dedupe, classify, reports, organize, run")
+        print("Comandos disponíveis:")
+        print("scan")
+        print("dedupe")
+        print("classify")
+        print("reports")
+        print("summary")
+        print("space")
+        print("organize")
+        print("run")
         return
 
     comando = sys.argv[1]
@@ -29,6 +37,10 @@ def main():
         rodar("classifiers/classificar_referencias.py")
     elif comando == "reports":
         rodar("reports/somar_exclusivos_por_tipo.py")
+    elif comando == "summary":
+        rodar("reports/summary.py")
+    elif comando == "space":
+        rodar("reports/analyze_space.py")
     elif comando == "organize":
         rodar("organize.py")
     elif comando == "run":
