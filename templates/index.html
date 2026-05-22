@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Fluxor</title>
+
+<style>
+
+body{
+background:#0f1115;
+color:white;
+font-family:Arial;
+padding:40px;
+}
+
+.container{
+max-width:900px;
+margin:auto;
+}
+
+.card{
+background:#1b1f27;
+padding:30px;
+border-radius:16px;
+}
+
+input,select{
+width:100%;
+padding:12px;
+margin:10px 0 20px;
+border-radius:10px;
+border:none;
+}
+
+button{
+background:#4f46e5;
+color:white;
+border:none;
+padding:14px 20px;
+border-radius:10px;
+cursor:pointer;
+font-size:16px;
+margin:5px;
+}
+
+button:hover{
+opacity:.9;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:20px;
+}
+
+.resultado{
+margin-top:20px;
+padding:15px;
+background:#111827;
+border-radius:10px;
+white-space:pre-line;
+}
+
+.organizar{
+background:#16a34a;
+width:100%;
+font-size:20px;
+padding:18px;
+margin-top:20px;
+}
+
+.small{
+color:#a1a1aa;
+font-size:14px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<h1>Fluxor</h1>
+
+<p class="small">
+Escolha origem e destino. Depois analise espaço e execute o pipeline.
+</p>
+
+<form method="POST">
+
+<div class="grid">
+
+<div>
+
+<label>Origem bagunçada</label>
+
+<select onchange="document.getElementById('origem').value=this.value">
+
+<option value="">Selecionar atalho...</option>
+
+{% for a in atalhos %}
+<option value="{{a}}">{{a}}</option>
+{% endfor %}
+
+</select>
+
+<input
+id="origem"
+name="origem"
+value="{{origem}}"
+placeholder="/Volumes/SAMSUNG/NETO/FOTOS"
+>
+
+<button name="acao" value="abrir_origem">
+Abrir origem no Finder
+</button>
+
+</div>
+
+<div>
+
+<label>Destino organizado</label>
+
+<select onchange="document.getElementById('destino').value=this.value">
+
+<option value="">Selecionar atalho...</option>
+
+{% for a in atalhos %}
+<option value="{{a}}">{{a}}</option>
+{% endfor %}
+
+</select>
+
+<input
+id="destino"
+name="destino"
+value="{{destino}}"
+placeholder="/Users/heitor/Projetos/FLUXOR_OUTPUT"
+>
+
+<button name="acao" value="abrir_destino">
+Abrir destino no Finder
+</button>
+
+</div>
+
+</div>
+
+<br>
+
+<button name="acao" value="analisar">
+Analisar espaço
+</button>
+
+<button class="organizar" name="acao" value="organizar">
+ORGANIZAR ACERVO
+</button>
+
+</form>
+
+{% if mensagem %}
+
+<div class="resultado">
+{{ mensagem }}
+</div>
+
+{% endif %}
+
+</div>
+
+</div>
+
+</body>
+</html>
