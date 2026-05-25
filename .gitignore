@@ -16,3 +16,4 @@ fluxor.db
 __pycache__/
 logs/*.txtsandbox/
 /sandbox/
+*.pyc
