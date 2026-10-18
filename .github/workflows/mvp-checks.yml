@@ -19,7 +19,7 @@ jobs:
         run: python -m compileall -q fluxor_core tests
       - name: Classifier
         run: python -m tests.test_classifier
-      - name: Organizer on isolated sandbox
+      - name: Organizer in temporary directory
         run: python -m tests.test_organizer
       - name: Scanner
         run: python -m tests.test_scanner
