@@ -28,3 +28,6 @@ jobs:
 
       - name: Preview plan and modes
         run: python -m tests.test_plan
+
+      - name: SQLite library
+        run: python -m tests.test_library
