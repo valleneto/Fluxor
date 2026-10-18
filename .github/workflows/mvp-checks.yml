@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Syntax check
-        run: python -m compileall -q fluxor_core tests fluxor_app_integrado.py fluxor_mvp_v2.py
+        run: python -m compileall -q fluxor_core tests fluxor_app_integrado.py fluxor_biblioteca.py fluxor_mvp_v2.py
       - name: Classifier
         run: python -m tests.test_classifier
       - name: Organizer in temporary directory
