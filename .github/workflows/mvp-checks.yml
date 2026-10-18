@@ -25,3 +25,6 @@ jobs:
         run: python -m tests.test_scanner
       - name: Safety regression
         run: python -m tests.test_seguranca
+
+      - name: Preview plan and modes
+        run: python -m tests.test_plan
