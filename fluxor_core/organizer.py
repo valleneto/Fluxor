@@ -4,40 +4,43 @@ import shutil
 from fluxor_core.classifier import classificar_arquivo
 
 
+def validar_pastas(pasta_origem, pasta_destino):
+    """Reject overlapping roots before creating or copying any files."""
+    origem = Path(pasta_origem).expanduser().resolve()
+    destino = Path(pasta_destino).expanduser().resolve()
+
+    if not origem.is_dir():
+        raise ValueError(f"Origem invalida ou inexistente: {origem}")
+
+    if origem == destino or origem in destino.parents or destino in origem.parents:
+        raise ValueError("Origem e destino nao podem estar dentro um do outro.")
+
+    return origem, destino
+
+
 def criar_destino_seguro(pasta_destino, nome_arquivo):
-    destino = Path(pasta_destino) / nome_arquivo
-
-    if not destino.exists():
-        return destino
-
+    pasta = Path(pasta_destino)
+    destino = pasta / nome_arquivo
     contador = 1
-    nome_base = destino.stem
-    extensao = destino.suffix
 
-    while destino.exists():
-        novo_nome = f"{nome_base} ({contador}){extensao}"
-        destino = Path(pasta_destino) / novo_nome
+    while destino.exists() or destino.is_symlink():
+        original = Path(nome_arquivo)
+        destino = pasta / f"{original.stem} ({contador}){original.suffix}"
         contador += 1
 
     return destino
 
 
 def organizar_por_tipo(pasta_origem, pasta_destino):
-    origem = Path(pasta_origem)
-    destino_base = Path(pasta_destino) / "Fluxor_Organizado"
-
-    if not origem.exists():
-        raise FileNotFoundError(f"Pasta de origem não encontrada: {origem}")
-
-    if not origem.is_dir():
-        raise NotADirectoryError(f"Origem não é uma pasta: {origem}")
+    origem, destino = validar_pastas(pasta_origem, pasta_destino)
+    destino_base = destino / "Fluxor_Organizado"
 
     destino_base.mkdir(parents=True, exist_ok=True)
-
     relatorio = []
 
+    # MVP: files immediately inside the source folder, not recursive.
     for item in origem.iterdir():
-        if not item.is_file():
+        if item.is_symlink() or not item.is_file():
             continue
 
         categoria = classificar_arquivo(item)
@@ -45,7 +48,6 @@ def organizar_por_tipo(pasta_origem, pasta_destino):
         pasta_categoria.mkdir(parents=True, exist_ok=True)
 
         destino_arquivo = criar_destino_seguro(pasta_categoria, item.name)
-
         shutil.copy2(item, destino_arquivo)
 
         relatorio.append({
