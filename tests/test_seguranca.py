@@ -111,6 +111,29 @@ def testar_destino_link_simbolico():
             raise AssertionError("Destino apontando para origem foi permitido")
 
 
+def testar_previa_compativel_com_organizacao():
+    from fluxor_core.scanner import escanear_pasta
+
+    with TemporaryDirectory() as temp:
+        raiz = Path(temp)
+        origem = raiz / "origem"
+        destino = raiz / "destino"
+        origem.mkdir()
+        (origem / "foto.png").write_bytes(b"imagem")
+        (origem / "texto.pdf").write_bytes(b"documento")
+        (origem / "subpasta").mkdir()
+        (origem / "subpasta" / "ignorar.mp3").write_bytes(b"musica")
+        atalho = origem / "atalho.png"
+        atalho.symlink_to(origem / "foto.png")
+
+        previa = escanear_pasta(origem)
+        resultado = organizar_por_tipo(origem, destino)
+        assert previa["total_arquivos"] == resultado["total_encontrados"] == 2
+        assert previa["total_arquivos"] == resultado["total_copiados"]
+        assert previa["resumo"] == {"Imagens": 1, "PDFs": 1}
+        assert not (destino / "Fluxor_Organizado" / "Audio").exists()
+
+
 if __name__ == "__main__":
     for teste in (
         testar_destino_interno,
@@ -120,6 +143,7 @@ if __name__ == "__main__":
         testar_cancelamento_e_progresso,
         testar_origem_e_destino_iguais,
         testar_destino_link_simbolico,
+        testar_previa_compativel_com_organizacao,
     ):
         teste()
         print("OK:", teste.__name__)
