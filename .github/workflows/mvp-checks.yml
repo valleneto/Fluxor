@@ -31,3 +31,6 @@ jobs:
 
       - name: SQLite library
         run: python -m tests.test_library
+
+      - name: OS005 SHA-256 and capacity safety
+        run: python -m tests.test_os005
