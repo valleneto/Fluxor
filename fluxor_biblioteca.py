@@ -11,6 +11,17 @@ from PySide6.QtWidgets import (
 from fluxor_core.library import index_folder, search_files, catalog_summary
 
 
+class SortableItem(QTableWidgetItem):
+    def __init__(self, label, sort_value=None):
+        super().__init__(str(label))
+        self.sort_value = sort_value if sort_value is not None else str(label).casefold()
+
+    def __lt__(self, other):
+        if isinstance(other, SortableItem):
+            return self.sort_value < other.sort_value
+        return super().__lt__(other)
+
+
 class IndexWorker(QObject):
     finished = Signal(dict)
     error = Signal(str)
@@ -128,9 +139,7 @@ class Biblioteca(QWidget):
             values = (row["name"], row["category"], row["project"], row["size"],
                       datetime.fromtimestamp(row["modified"]).strftime("%d/%m/%Y %H:%M"), row["path"])
             for j, value in enumerate(values):
-                cell = QTableWidgetItem(str(value))
-                if j in (3, 4):
-                    cell.setData(Qt.ItemDataRole.UserRole, row["size"] if j == 3 else row["modified"])
+                cell = SortableItem(value, row["size"] if j == 3 else row["modified"] if j == 4 else None)
                 self.table.setItem(i, j, cell)
         self.table.setSortingEnabled(True)
 
