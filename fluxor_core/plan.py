@@ -1,5 +1,6 @@
 """Preview and copy engine for Fluxor beta. No source file is deleted."""
 from datetime import datetime
+import hashlib
 from pathlib import Path
 import os
 import shutil
@@ -63,8 +64,32 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True):
     }
 
 
+def sha256_arquivo(arquivo):
+    digest = hashlib.sha256()
+    with Path(arquivo).open("rb") as fonte:
+        for bloco in iter(lambda: fonte.read(1024 * 1024), b""):
+            digest.update(bloco)
+    return digest.hexdigest()
+
+
+def verificar_espaco(plano):
+    """Conservative free-space check before copying."""
+    destino = Path(plano["destino"]).expanduser().resolve()
+    ancora = destino
+    while not ancora.exists() and ancora != ancora.parent:
+        ancora = ancora.parent
+    if not ancora.is_dir():
+        raise ValueError("Destino indisponivel.")
+    livres = shutil.disk_usage(ancora).free
+    necessario = sum(int(x["tamanho"]) for x in plano["arquivos"])
+    if livres < necessario:
+        raise OSError(f"Espaco insuficiente: necessario {necessario}, livre {livres} bytes")
+    return {"livres": livres, "necessario": necessario}
+
+
 def executar_plano(plano, progresso=None, cancelar=None):
     origem, destino = validar_pastas(plano["origem"], plano["destino"])
+    verificar_espaco(plano)
     base = destino / "Fluxor_Organizado"
     copiados = 0
     erros = []
@@ -107,6 +132,8 @@ def executar_plano(plano, progresso=None, cancelar=None):
             shutil.copystat(arquivo, saida)
             if arquivo.stat().st_size != saida.stat().st_size:
                 raise OSError("Tamanho copiado diferente do original.")
+            if sha256_arquivo(arquivo) != sha256_arquivo(saida):
+                raise OSError("SHA-256 da copia diferente do original.")
             copiados += 1
             relatorio.append({"origem": str(arquivo), "destino": str(saida), "status": "copiado"})
         except (OSError, ValueError) as erro:
