@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
@@ -60,10 +60,11 @@ class Biblioteca(QWidget):
         root.addLayout(controls)
         self.status = QLabel("Biblioteca local. Nenhum arquivo será copiado.")
         root.addWidget(self.status)
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Nome", "Categoria", "Projeto sugerido", "Tamanho", "Caminho original"])
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels(["Nome", "Categoria", "Projeto sugerido", "Tamanho", "Modificado", "Caminho original"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSortingEnabled(True)
         root.addWidget(self.table)
         self.refresh()
 
@@ -120,10 +121,18 @@ class Biblioteca(QWidget):
         except Exception as error:
             self.status.setText(f"Falha ao consultar índice: {error}")
             return
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(len(rows))
         for i, row in enumerate(rows):
-            for j, key in enumerate(("name", "category", "project", "size", "path")):
-                self.table.setItem(i, j, QTableWidgetItem(str(row[key])))
+            from datetime import datetime
+            values = (row["name"], row["category"], row["project"], row["size"],
+                      datetime.fromtimestamp(row["modified"]).strftime("%d/%m/%Y %H:%M"), row["path"])
+            for j, value in enumerate(values):
+                cell = QTableWidgetItem(str(value))
+                if j in (3, 4):
+                    cell.setData(Qt.ItemDataRole.UserRole, row["size"] if j == 3 else row["modified"])
+                self.table.setItem(i, j, cell)
+        self.table.setSortingEnabled(True)
 
     def closeEvent(self, event):
         if self.thread is not None:
