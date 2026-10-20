@@ -14,6 +14,14 @@ class Inicio(QWidget):
         super().__init__()
         self.setWindowTitle("Fluxor Control — Beta")
         self.resize(1000, 700)
+        self.setStyleSheet("""
+            QWidget { font-size: 13px; }
+            QPushButton { padding: 8px 12px; border-radius: 8px; }
+            QPushButton:hover { background-color: palette(midlight); }
+            QPushButton:disabled { color: palette(mid); }
+            QLineEdit, QComboBox { padding: 6px; border-radius: 6px; }
+            QTableWidget { gridline-color: palette(midlight); }
+        """)
         self.history = []
         self.future = []
         root = QVBoxLayout(self)
@@ -36,7 +44,8 @@ class Inicio(QWidget):
         title = QLabel("FLUXOR")
         title.setStyleSheet("font-size: 30px; font-weight: bold;")
         start_layout.addWidget(title)
-        start_layout.addWidget(QLabel("O que você quer fazer com seus arquivos?"))
+        start_layout.addWidget(QLabel("Encontre o que importa. Organize com segurança."))
+        start_layout.addWidget(QLabel("Biblioteca: consulta sem mover. Organizar: cópia após prévia."))
         browse = QPushButton("Explorar Biblioteca — sem mover arquivos")
         organize = QPushButton("Organizar — prévia antes de copiar")
         browse.clicked.connect(lambda: self.navigate(1))
