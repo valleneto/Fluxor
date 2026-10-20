@@ -40,3 +40,6 @@ jobs:
 
       - name: OS007 performance smoke
         run: python -m tests.test_os007_performance
+
+      - name: OS008 paging and cancellation
+        run: python -m tests.test_os008
