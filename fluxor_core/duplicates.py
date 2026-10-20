@@ -2,7 +2,20 @@
 import sqlite3
 from pathlib import Path
 from collections import defaultdict
-from fluxor_core.plan import sha256_arquivo
+import hashlib
+
+
+def _hash_with_cancel(path, cancel):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as source:
+        while True:
+            if cancel and cancel():
+                return None
+            block = source.read(1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def find_exact_duplicates(database_path, cancel=None, progress=None):
@@ -28,7 +41,13 @@ def find_exact_duplicates(database_path, cancel=None, progress=None):
                 item = Path(path)
                 if item.is_symlink() or not item.is_file() or item.stat().st_size != size:
                     continue
-                found[(size, sha256_arquivo(item))].append(path)
+                digest = _hash_with_cancel(item, cancel)
+                if digest is None:
+                    interrupted = True
+                    break
+                if item.stat().st_size != size:
+                    continue
+                found[(size, digest)].append(path)
             except OSError as error:
                 errors.append({"path": path, "error": str(error)})
             checked += 1
@@ -36,7 +55,7 @@ def find_exact_duplicates(database_path, cancel=None, progress=None):
                 progress(checked, len(rows))
         if interrupted:
             break
-    groups = [
+    groups = [] if interrupted else [
         {"size": size, "sha256": digest, "paths": files}
         for (size, digest), files in found.items() if len(files) > 1
     ]
