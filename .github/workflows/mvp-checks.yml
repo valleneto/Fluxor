@@ -43,3 +43,6 @@ jobs:
 
       - name: OS008 paging and cancellation
         run: python -m tests.test_os008
+
+      - name: OS009 copy safety
+        run: python -m tests.test_os009
