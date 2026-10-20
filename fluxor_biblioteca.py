@@ -6,9 +6,10 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget, QComboBox, QHeaderView,
+    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit,
 )
-from fluxor_core.library import index_folder, search_files, catalog_summary
+from fluxor_core.library import index_folder, search_files, catalog_summary, storage_diagnosis
+from fluxor_core.duplicates import find_exact_duplicates
 
 
 class SortableItem(QTableWidgetItem):
@@ -42,6 +43,25 @@ class IndexWorker(QObject):
             self.done.emit()
 
 
+class DuplicateWorker(QObject):
+    finished = Signal(dict)
+    error = Signal(str)
+    done = Signal()
+
+    def __init__(self, database):
+        super().__init__()
+        self.database = database
+
+    @Slot()
+    def run(self):
+        try:
+            self.finished.emit(find_exact_duplicates(self.database))
+        except Exception as error:
+            self.error.emit(str(error))
+        finally:
+            self.done.emit()
+
+
 class Biblioteca(QWidget):
     def __init__(self):
         super().__init__()
@@ -69,6 +89,22 @@ class Biblioteca(QWidget):
         controls.addWidget(self.search)
         controls.addWidget(self.category)
         root.addLayout(controls)
+        tools = QHBoxLayout()
+        self.ext_filter = QLineEdit()
+        self.ext_filter.setPlaceholderText("Extensão: .pdf")
+        self.ext_filter.textChanged.connect(self.refresh)
+        self.analysis_button = QPushButton("Diagnóstico")
+        self.duplicates_button = QPushButton("Comparar duplicados")
+        self.analysis_button.clicked.connect(self.diagnose)
+        self.duplicates_button.clicked.connect(self.duplicates)
+        tools.addWidget(self.ext_filter)
+        tools.addWidget(self.analysis_button)
+        tools.addWidget(self.duplicates_button)
+        root.addLayout(tools)
+        self.report = QTextEdit()
+        self.report.setReadOnly(True)
+        self.report.setMaximumHeight(115)
+        root.addWidget(self.report)
         self.status = QLabel("Biblioteca local. Nenhum arquivo será copiado.")
         root.addWidget(self.status)
         self.table = QTableWidget(0, 6)
@@ -76,7 +112,12 @@ class Biblioteca(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSortingEnabled(True)
+        self.table.itemSelectionChanged.connect(self.inspect)
         root.addWidget(self.table)
+        self.inspector = QLabel("Selecione um arquivo para conferir seus dados. Clique duas vezes para abrir com o aplicativo padrão.")
+        self.inspector.setWordWrap(True)
+        root.addWidget(self.inspector)
+        self.table.itemDoubleClicked.connect(self.open_selected)
         self.refresh()
 
     def choose_folder(self):
@@ -84,6 +125,8 @@ class Biblioteca(QWidget):
         if not folder:
             return
         self.index_button.setEnabled(False)
+        self.analysis_button.setEnabled(False)
+        self.duplicates_button.setEnabled(False)
         self.status.setText("Indexando metadados em segundo plano...")
         self.thread = QThread(self)
         self.worker = IndexWorker(folder, str(self.db))
@@ -110,6 +153,8 @@ class Biblioteca(QWidget):
         self.thread = None
         self.worker = None
         self.index_button.setEnabled(True)
+        self.analysis_button.setEnabled(True)
+        self.duplicates_button.setEnabled(True)
 
     def refresh(self, *args):
         if not self.db.exists():
@@ -128,6 +173,7 @@ class Biblioteca(QWidget):
             rows = search_files(
                 self.db, text=self.search.text(),
                 category=None if selected == "Todas as categorias" else selected,
+                extension=self.ext_filter.text().strip() or None,
             )
         except Exception as error:
             self.status.setText(f"Falha ao consultar índice: {error}")
@@ -142,6 +188,66 @@ class Biblioteca(QWidget):
                 cell = SortableItem(value, row["size"] if j == 3 else row["modified"] if j == 4 else None)
                 self.table.setItem(i, j, cell)
         self.table.setSortingEnabled(True)
+
+    def inspect(self):
+        rows = self.table.selectedItems()
+        if not rows:
+            return
+        row = rows[0].row()
+        values = [self.table.item(row, col).text() for col in range(6)]
+        self.inspector.setText(
+            f"Arquivo: {values[0]}  |  Categoria: {values[1]}  |  "
+            f"Tamanho: {values[3]} bytes  |  Alterado: {values[4]}  |  "
+            f"Local: {values[5]}"
+        )
+
+    def open_selected(self, item):
+        import subprocess
+        path_item = self.table.item(item.row(), 5)
+        if not path_item:
+            return
+        path = Path(path_item.text())
+        if path.is_file():
+            subprocess.Popen(["open", str(path)])
+
+    def diagnose(self):
+        if not self.db.exists():
+            return
+        data = storage_diagnosis(self.db)
+        self.report.setPlainText(
+            f"Arquivos: {data['total']} | Volume: {data['size']} bytes\\n"
+            + "Categorias por espaço: "
+            + ", ".join(f"{cat}: {size} bytes" for cat, count, size in data["categories"][:5])
+            + "\\nMaiores: "
+            + ", ".join(f"{name} ({size} bytes)" for path, name, size in data["largest"][:5])
+        )
+
+    def duplicates(self):
+        if not self.db.exists() or self.thread is not None:
+            return
+        self.status.setText("Comparando candidatos por tamanho e SHA-256...")
+        self.index_button.setEnabled(False)
+        self.analysis_button.setEnabled(False)
+        self.duplicates_button.setEnabled(False)
+        self.thread = QThread(self)
+        self.worker = DuplicateWorker(str(self.db))
+        self.worker.moveToThread(self.thread)
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.show_duplicates)
+        self.worker.error.connect(self.failed)
+        self.worker.done.connect(self.thread.quit)
+        self.worker.done.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.thread.finished.connect(self.cleaned)
+        self.thread.start()
+
+    def show_duplicates(self, data):
+        self.report.setPlainText(
+            f"Grupos idênticos: {len(data['groups'])} | "
+            f"Espaço redundante potencial: {data['potential_redundant_bytes']} bytes\\n"
+            + "\\n".join(" = ".join(group["paths"]) for group in data["groups"][:12])
+        )
+        self.status.setText("Comparação concluída. Nenhum arquivo foi excluído.")
 
     def closeEvent(self, event):
         if self.thread is not None:
