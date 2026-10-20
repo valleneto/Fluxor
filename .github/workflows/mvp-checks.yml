@@ -37,3 +37,6 @@ jobs:
 
       - name: OS007 Find and Fix
         run: python -m tests.test_os007
+
+      - name: OS007 performance smoke
+        run: python -m tests.test_os007_performance
