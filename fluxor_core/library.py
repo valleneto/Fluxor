@@ -43,8 +43,14 @@ def index_folder(root, database_path, recursive=True):
     if database_path == root or root in database_path.parents:
         raise ValueError("O banco da biblioteca precisa ficar fora da origem.")
     database_path.parent.mkdir(parents=True, exist_ok=True)
-    entries = []
     warnings = []
+    indexed = 0
+    bytes_total = 0
+    batch = []
+    con = sqlite3.connect(database_path)
+    con.executescript(SCHEMA)
+    con.execute('BEGIN')
+    con.execute('DELETE FROM files WHERE root=?', (str(root),))
     for folder, subdirs, names in os.walk(root, followlinks=False):
         subdirs[:] = sorted(
             name for name in subdirs
@@ -58,27 +64,29 @@ def index_folder(root, database_path, recursive=True):
             try:
                 info = item.stat()
                 relative = item.relative_to(root)
-                entries.append((
+                record = (
                     str(item), str(root), item.name,
                     classificar_arquivo(item), item.suffix.lower(),
                     info.st_size, info.st_mtime, suggest_project(relative),
-                ))
+                )
+                batch.append(record)
+                indexed += 1
+                bytes_total += info.st_size
+                if len(batch) >= 500:
+                    con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
+                    batch.clear()
             except OSError as error:
                 warnings.append(f"{item}: {error}")
 
-    with sqlite3.connect(database_path) as con:
-        con.executescript(SCHEMA)
-        # Transactional refresh of only the selected source root.
-        con.execute("DELETE FROM files WHERE root=?", (str(root),))
-        con.executemany(
-            "INSERT INTO files (path, root, name, category, extension, size, modified, project) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", entries,
-        )
-    return {"total": len(entries), "size": sum(e[5] for e in entries),
-            "warnings": warnings, "database": str(database_path)}
+    if batch:
+        con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
+    con.commit()
+    con.close()
+    return {"total": indexed, "size": bytes_total, "warnings": warnings,
+            "database": str(database_path)}
 
 
-def search_files(database_path, text="", category=None, project=None, limit=500, extension=None, min_size=None, max_size=None):
+def search_files(database_path, text="", category=None, project=None, limit=500, extension=None, min_size=None, max_size=None, offset=0, sort='modified', descending=True):
     limit = max(1, min(int(limit), 5000))
     clauses = []
     params = []
@@ -104,8 +112,9 @@ def search_files(database_path, text="", category=None, project=None, limit=500,
              "FROM files")
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
-    query += " ORDER BY modified DESC, name LIMIT ?"
-    params.append(limit)
+    order = {'name':'name COLLATE NOCASE', 'size':'size', 'modified':'modified', 'category':'category COLLATE NOCASE'}.get(sort, 'modified')
+    query += ' ORDER BY ' + order + (' DESC' if descending else ' ASC') + ', path LIMIT ? OFFSET ?'
+    params.extend((limit, max(0, int(offset))))
     with sqlite3.connect(database_path) as con:
         rows = con.execute(query, params).fetchall()
     return [dict(zip(("path", "name", "category", "extension", "size", "modified", "project"), row))
