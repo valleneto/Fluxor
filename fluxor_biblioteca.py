@@ -1,6 +1,7 @@
 """Fluxor Biblioteca — consulta local, sem copiar ou mover arquivos."""
 import sys
 from pathlib import Path
+from PySide6.QtGui import QShortcut, QKeySequence
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
@@ -51,11 +52,15 @@ class DuplicateWorker(QObject):
     def __init__(self, database):
         super().__init__()
         self.database = database
+        self.cancel_requested = False
+
+    def cancel(self):
+        self.cancel_requested = True
 
     @Slot()
     def run(self):
         try:
-            self.finished.emit(find_exact_duplicates(self.database))
+            self.finished.emit(find_exact_duplicates(self.database, cancel=lambda: self.cancel_requested))
         except Exception as error:
             self.error.emit(str(error))
         finally:
@@ -70,6 +75,8 @@ class Biblioteca(QWidget):
         self.db = Path.home() / ".fluxor" / "library.db"
         self.thread = None
         self.worker = None
+        self.offset = 0
+        self.page_size = 100
         root = QVBoxLayout(self)
         title = QLabel("Fluxor Biblioteca — sem mover arquivos")
         title.setStyleSheet("font-size: 22px; font-weight: 650")
@@ -100,6 +107,10 @@ class Biblioteca(QWidget):
         tools.addWidget(self.ext_filter)
         tools.addWidget(self.analysis_button)
         tools.addWidget(self.duplicates_button)
+        self.cancel_button = QPushButton("Interromper análise")
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.clicked.connect(self.cancel_scan)
+        tools.addWidget(self.cancel_button)
         root.addLayout(tools)
         self.report = QTextEdit()
         self.report.setReadOnly(True)
@@ -114,6 +125,16 @@ class Biblioteca(QWidget):
         self.table.setSortingEnabled(True)
         self.table.itemSelectionChanged.connect(self.inspect)
         root.addWidget(self.table)
+        pages = QHBoxLayout()
+        self.prev_button = QPushButton("← Anteriores")
+        self.next_button = QPushButton("Próximos →")
+        self.prev_button.clicked.connect(lambda: self.turn_page(-1))
+        self.next_button.clicked.connect(lambda: self.turn_page(1))
+        pages.addWidget(self.prev_button)
+        pages.addWidget(self.next_button)
+        root.addLayout(pages)
+        self.quicklook = QShortcut(QKeySequence("Space"), self.table)
+        self.quicklook.activated.connect(self.open_preview)
         self.inspector = QLabel("Selecione um arquivo para conferir seus dados. Clique duas vezes para abrir com o aplicativo padrão.")
         self.inspector.setWordWrap(True)
         root.addWidget(self.inspector)
@@ -155,8 +176,15 @@ class Biblioteca(QWidget):
         self.index_button.setEnabled(True)
         self.analysis_button.setEnabled(True)
         self.duplicates_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)
+
+    def turn_page(self, direction):
+        self.offset = max(0, self.offset + direction * self.page_size)
+        self.refresh()
 
     def refresh(self, *args):
+        if self.sender() in (self.search, self.category, self.ext_filter):
+            self.offset = 0
         if not self.db.exists():
             return
         try:
@@ -174,6 +202,7 @@ class Biblioteca(QWidget):
                 self.db, text=self.search.text(),
                 category=None if selected == "Todas as categorias" else selected,
                 extension=self.ext_filter.text().strip() or None,
+                limit=self.page_size, offset=self.offset,
             )
         except Exception as error:
             self.status.setText(f"Falha ao consultar índice: {error}")
@@ -188,6 +217,8 @@ class Biblioteca(QWidget):
                 cell = SortableItem(value, row["size"] if j == 3 else row["modified"] if j == 4 else None)
                 self.table.setItem(i, j, cell)
         self.table.setSortingEnabled(True)
+        self.prev_button.setEnabled(self.offset > 0)
+        self.next_button.setEnabled(len(rows) == self.page_size)
 
     def inspect(self):
         rows = self.table.selectedItems()
@@ -200,6 +231,22 @@ class Biblioteca(QWidget):
             f"Tamanho: {values[3]} bytes  |  Alterado: {values[4]}  |  "
             f"Local: {values[5]}"
         )
+
+    def cancel_scan(self):
+        if isinstance(self.worker, DuplicateWorker):
+            self.worker.cancel()
+            self.cancel_button.setEnabled(False)
+            self.status.setText("Interrupção solicitada...")
+
+    def open_preview(self):
+        row = self.table.currentRow()
+        item = self.table.item(row, 5) if row >= 0 else None
+        if item and sys.platform == "darwin":
+            path = Path(item.text())
+            if path.is_file():
+                import subprocess
+                subprocess.Popen(["qlmanage", "-p", str(path)],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def open_selected(self, item):
         import subprocess
@@ -229,6 +276,7 @@ class Biblioteca(QWidget):
         self.index_button.setEnabled(False)
         self.analysis_button.setEnabled(False)
         self.duplicates_button.setEnabled(False)
+        self.cancel_button.setEnabled(True)
         self.thread = QThread(self)
         self.worker = DuplicateWorker(str(self.db))
         self.worker.moveToThread(self.thread)
@@ -247,7 +295,7 @@ class Biblioteca(QWidget):
             f"Espaço redundante potencial: {data['potential_redundant_bytes']} bytes\\n"
             + "\\n".join(" = ".join(group["paths"]) for group in data["groups"][:12])
         )
-        self.status.setText("Comparação concluída. Nenhum arquivo foi excluído.")
+        self.status.setText("Análise interrompida." if data["cancelled"] else "Comparação concluída. Nenhum arquivo foi excluído.")
 
     def closeEvent(self, event):
         if self.thread is not None:
