@@ -115,6 +115,12 @@ def executar_plano(plano, progresso=None, cancelar=None):
                 raise ValueError("Destino relativo invalido.")
             pasta = base / relativo.parent
             pasta.mkdir(parents=True, exist_ok=True)
+            if base.resolve() != base or pasta.resolve() != pasta:
+                raise ValueError("Destino contem link simbolico.")
+            if pasta != base and base not in pasta.parents:
+                raise ValueError("Destino fora da pasta organizada.")
+            if arquivo.stat().st_size != int(entrada["tamanho"]):
+                raise OSError("Origem mudou desde a previa; planeje novamente.")
             # Exclusively create names; never overwrite on collisions.
             tentativas = 0
             while True:
@@ -123,7 +129,13 @@ def executar_plano(plano, progresso=None, cancelar=None):
                 try:
                     with arquivo.open("rb") as fonte, saida.open("xb") as alvo:
                         criado = True
-                        shutil.copyfileobj(fonte, alvo, length=1024 * 1024)
+                        while True:
+                            if cancelar and cancelar():
+                                raise InterruptedError("Copia interrompida.")
+                            bloco = fonte.read(1024 * 1024)
+                            if not bloco:
+                                break
+                            alvo.write(bloco)
                     break
                 except FileExistsError:
                     tentativas += 1
@@ -136,14 +148,19 @@ def executar_plano(plano, progresso=None, cancelar=None):
                 raise OSError("SHA-256 da copia diferente do original.")
             copiados += 1
             relatorio.append({"origem": str(arquivo), "destino": str(saida), "status": "copiado"})
-        except (OSError, ValueError) as erro:
+        except (OSError, ValueError, InterruptedError) as erro:
             if criado and saida is not None:
                 try:
                     saida.unlink()
                 except OSError:
                     pass
-            erros.append({"origem": str(arquivo), "erro": str(erro)})
-            relatorio.append({"origem": str(arquivo), "status": "erro", "erro": str(erro)})
+            if isinstance(erro, InterruptedError):
+                cancelado = True
+            else:
+                erros.append({"origem": str(arquivo), "erro": str(erro)})
+            relatorio.append({"origem": str(arquivo), "status": "interrompido" if cancelado else "erro", "erro": str(erro)})
+            if cancelado:
+                break
         if progresso:
             progresso(indice, total)
     return {
