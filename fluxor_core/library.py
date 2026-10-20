@@ -78,7 +78,7 @@ def index_folder(root, database_path, recursive=True):
             "warnings": warnings, "database": str(database_path)}
 
 
-def search_files(database_path, text="", category=None, project=None, limit=500):
+def search_files(database_path, text="", category=None, project=None, limit=500, extension=None, min_size=None, max_size=None):
     limit = max(1, min(int(limit), 5000))
     clauses = []
     params = []
@@ -91,6 +91,15 @@ def search_files(database_path, text="", category=None, project=None, limit=500)
     if project:
         clauses.append("project = ?")
         params.append(project)
+    if extension:
+        clauses.append("extension = ?")
+        params.append(extension.lower())
+    if min_size is not None:
+        clauses.append("size >= ?")
+        params.append(int(min_size))
+    if max_size is not None:
+        clauses.append("size <= ?")
+        params.append(int(max_size))
     query = ("SELECT path, name, category, extension, size, modified, project "
              "FROM files")
     if clauses:
@@ -114,3 +123,18 @@ def catalog_summary(database_path):
             "GROUP BY project ORDER BY COUNT(*) DESC LIMIT 10"
         ).fetchall()
     return {"total": total, "size": size, "categories": categories, "projects": projects}
+
+
+def storage_diagnosis(database_path, limit=10):
+    """Metadata-only diagnostics, no file reads."""
+    with sqlite3.connect(database_path) as con:
+        total, size = con.execute("SELECT COUNT(*), COALESCE(SUM(size),0) FROM files").fetchone()
+        categories = con.execute(
+            "SELECT category, COUNT(*), SUM(size) FROM files "
+            "GROUP BY category ORDER BY SUM(size) DESC"
+        ).fetchall()
+        largest = con.execute(
+            "SELECT path, name, size FROM files ORDER BY size DESC LIMIT ?",
+            (max(1, min(int(limit), 100)),)
+        ).fetchall()
+    return {"total": total, "size": size, "categories": categories, "largest": largest}
