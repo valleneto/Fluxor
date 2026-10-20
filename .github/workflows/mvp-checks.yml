@@ -34,3 +34,6 @@ jobs:
 
       - name: OS005 SHA-256 and capacity safety
         run: python -m tests.test_os005
+
+      - name: OS007 Find and Fix
+        run: python -m tests.test_os007
