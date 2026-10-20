@@ -46,3 +46,6 @@ jobs:
 
       - name: OS009 copy safety
         run: python -m tests.test_os009
+
+      - name: OS010 Radar and Versions
+        run: python -m tests.test_os010
