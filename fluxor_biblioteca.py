@@ -7,11 +7,12 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit,
+    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget, QStyle,
 )
 from fluxor_core.library import index_folder, search_files, catalog_summary, storage_diagnosis
 from fluxor_core.duplicates import find_exact_duplicates
 from fluxor_core.intelligence import radar_report, version_candidates
+from fluxor_media import MediaPreview
 
 
 class SortableItem(QTableWidgetItem):
@@ -135,7 +136,19 @@ class Biblioteca(QWidget):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSortingEnabled(True)
         self.table.itemSelectionChanged.connect(self.inspect)
-        root.addWidget(self.table)
+        self.visual_modes = QStackedWidget()
+        self.visual_modes.addWidget(self.table)
+        self.gallery = QListWidget()
+        self.gallery.setViewMode(QListWidget.ViewMode.IconMode)
+        self.gallery.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self.gallery.setIconSize(__import__("PySide6.QtCore", fromlist=["QSize"]).QSize(44, 44))
+        self.gallery.setGridSize(__import__("PySide6.QtCore", fromlist=["QSize"]).QSize(145, 100))
+        self.gallery.itemClicked.connect(self.gallery_selected)
+        self.visual_modes.addWidget(self.gallery)
+        self.gallery_button = QPushButton("Alternar lista / galeria")
+        self.gallery_button.clicked.connect(self.toggle_gallery)
+        root.addWidget(self.gallery_button)
+        root.addWidget(self.visual_modes)
         pages = QHBoxLayout()
         self.prev_button = QPushButton("← Anteriores")
         self.next_button = QPushButton("Próximos →")
@@ -149,6 +162,9 @@ class Biblioteca(QWidget):
         self.inspector = QLabel("Selecione um arquivo para conferir seus dados. Clique duas vezes para abrir com o aplicativo padrão.")
         self.inspector.setWordWrap(True)
         root.addWidget(self.inspector)
+        self.media = MediaPreview(self)
+        self.media.setVisible(False)
+        root.addWidget(self.media)
         self.table.itemDoubleClicked.connect(self.open_selected)
         self.refresh()
 
@@ -230,6 +246,13 @@ class Biblioteca(QWidget):
                 cell = SortableItem(value, row["size"] if j == 3 else row["modified"] if j == 4 else None)
                 self.table.setItem(i, j, cell)
         self.table.setSortingEnabled(True)
+        self.gallery.clear()
+        for index, row in enumerate(rows):
+            item = QListWidgetItem(row["name"])
+            item.setData(Qt.ItemDataRole.UserRole, row["path"])
+            standard = QStyle.StandardPixmap.SP_FileIcon
+            item.setIcon(self.style().standardIcon(standard))
+            self.gallery.addItem(item)
         self.prev_button.setEnabled(self.offset > 0)
         self.next_button.setEnabled(len(rows) == self.page_size)
 
@@ -239,11 +262,26 @@ class Biblioteca(QWidget):
             return
         row = rows[0].row()
         values = [self.table.item(row, col).text() for col in range(6)]
+        self.media.setVisible(True)
+        self.media.select_file(values[5])
         self.inspector.setText(
             f"Arquivo: {values[0]}  |  Categoria: {values[1]}  |  "
             f"Tamanho: {values[3]} bytes  |  Alterado: {values[4]}  |  "
             f"Local: {values[5]}"
         )
+
+    def toggle_gallery(self):
+        current = self.visual_modes.currentIndex()
+        self.visual_modes.setCurrentIndex(1 - current)
+
+    def gallery_selected(self, item):
+        path = item.data(Qt.ItemDataRole.UserRole)
+        for row in range(self.table.rowCount()):
+            cell = self.table.item(row, 5)
+            if cell and cell.text() == path:
+                self.table.selectRow(row)
+                self.inspect()
+                break
 
     def cancel_scan(self):
         if isinstance(self.worker, DuplicateWorker):
