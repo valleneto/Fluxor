@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 from fluxor_core.library import index_folder, search_files, catalog_summary, storage_diagnosis
 from fluxor_core.duplicates import find_exact_duplicates
+from fluxor_core.intelligence import radar_report, version_candidates
 
 
 class SortableItem(QTableWidgetItem):
@@ -100,12 +101,15 @@ class Biblioteca(QWidget):
         self.ext_filter = QLineEdit()
         self.ext_filter.setPlaceholderText("Extensão: .pdf")
         self.ext_filter.textChanged.connect(self.refresh)
-        self.analysis_button = QPushButton("Diagnóstico")
+        self.analysis_button = QPushButton("Radar · Descobertas")
+        self.versions_button = QPushButton("Versões possíveis")
+        self.versions_button.clicked.connect(self.show_versions)
         self.duplicates_button = QPushButton("Comparar duplicados")
         self.analysis_button.clicked.connect(self.diagnose)
         self.duplicates_button.clicked.connect(self.duplicates)
         tools.addWidget(self.ext_filter)
         tools.addWidget(self.analysis_button)
+        tools.addWidget(self.versions_button)
         tools.addWidget(self.duplicates_button)
         self.cancel_button = QPushButton("Interromper análise")
         self.cancel_button.setEnabled(False)
@@ -148,6 +152,7 @@ class Biblioteca(QWidget):
         self.index_button.setEnabled(False)
         self.analysis_button.setEnabled(False)
         self.duplicates_button.setEnabled(False)
+        self.versions_button.setEnabled(False)
         self.status.setText("Indexando metadados em segundo plano...")
         self.thread = QThread(self)
         self.worker = IndexWorker(folder, str(self.db))
@@ -176,6 +181,7 @@ class Biblioteca(QWidget):
         self.index_button.setEnabled(True)
         self.analysis_button.setEnabled(True)
         self.duplicates_button.setEnabled(True)
+        self.versions_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
 
     def turn_page(self, direction):
@@ -257,17 +263,28 @@ class Biblioteca(QWidget):
         if path.is_file():
             subprocess.Popen(["open", str(path)])
 
+    def show_versions(self):
+        if not self.db.exists():
+            return
+        groups = version_candidates(self.db)
+        lines = ["VERSÕES POSSÍVEIS — nomes semelhantes não confirmam igualdade."]
+        for group in groups[:8]:
+            lines.append(group["label"] + ": " + " | ".join(x["name"] for x in group["files"][:5]))
+        if not groups:
+            lines.append("Nenhuma versão provável detectada.")
+        self.report.setPlainText("\n".join(lines))
+
     def diagnose(self):
         if not self.db.exists():
             return
-        data = storage_diagnosis(self.db)
-        self.report.setPlainText(
-            f"Arquivos: {data['total']} | Volume: {data['size']} bytes\\n"
-            + "Categorias por espaço: "
-            + ", ".join(f"{cat}: {size} bytes" for cat, count, size in data["categories"][:5])
-            + "\\nMaiores: "
-            + ", ".join(f"{name} ({size} bytes)" for path, name, size in data["largest"][:5])
-        )
+        data = radar_report(self.db)
+        lines = [
+            f"RADAR — {data['total']} arquivos, {data['size']} bytes indexados",
+            f"Grupos com tamanho igual (não verificados): {data['same_size_groups_unverified']}",
+            "Categorias: " + ", ".join(f"{cat} — {size} bytes" for cat, count, size in data["categories"][:5]),
+            "Maiores: " + ", ".join(f"{name} ({size} bytes)" for name, path, size in data["largest"][:5]),
+        ]
+        self.report.setPlainText("\n".join(lines))
 
     def duplicates(self):
         if not self.db.exists() or self.thread is not None:
