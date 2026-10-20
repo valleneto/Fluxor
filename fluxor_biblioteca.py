@@ -78,6 +78,7 @@ class Biblioteca(QWidget):
         self.worker = None
         self.offset = 0
         self.page_size = 100
+        self.review_paths = set()
         root = QVBoxLayout(self)
         title = QLabel("Fluxor Biblioteca — sem mover arquivos")
         title.setStyleSheet("font-size: 22px; font-weight: 650")
@@ -102,6 +103,10 @@ class Biblioteca(QWidget):
         self.ext_filter.setPlaceholderText("Extensão: .pdf")
         self.ext_filter.textChanged.connect(self.refresh)
         self.analysis_button = QPushButton("Radar · Descobertas")
+        self.review_button = QPushButton("Adicionar à revisão")
+        self.review_button.clicked.connect(self.add_review)
+        self.review_list_button = QPushButton("Ver lista de revisão")
+        self.review_list_button.clicked.connect(self.show_review)
         self.versions_button = QPushButton("Versões possíveis")
         self.versions_button.clicked.connect(self.show_versions)
         self.duplicates_button = QPushButton("Comparar duplicados")
@@ -110,6 +115,8 @@ class Biblioteca(QWidget):
         tools.addWidget(self.ext_filter)
         tools.addWidget(self.analysis_button)
         tools.addWidget(self.versions_button)
+        tools.addWidget(self.review_button)
+        tools.addWidget(self.review_list_button)
         tools.addWidget(self.duplicates_button)
         self.cancel_button = QPushButton("Interromper análise")
         self.cancel_button.setEnabled(False)
@@ -262,6 +269,20 @@ class Biblioteca(QWidget):
         path = Path(path_item.text())
         if path.is_file():
             subprocess.Popen(["open", str(path)])
+
+    def add_review(self):
+        row = self.table.currentRow()
+        item = self.table.item(row, 5) if row >= 0 else None
+        if item:
+            self.review_paths.add(item.text())
+            self.status.setText(f"Lista de revisão: {len(self.review_paths)} arquivos. Nenhuma alteração realizada.")
+
+    def show_review(self):
+        lines = ["LISTA DE REVISÃO — apenas nesta sessão, sem mover nem excluir arquivos."]
+        lines.extend(sorted(self.review_paths))
+        if not self.review_paths:
+            lines.append("Selecione um arquivo e clique em Adicionar à revisão.")
+        self.report.setPlainText("\n".join(lines))
 
     def show_versions(self):
         if not self.db.exists():
