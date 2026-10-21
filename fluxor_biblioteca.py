@@ -153,6 +153,7 @@ class Biblioteca(QWidget):
         self.table.setShowGrid(False)
         self.table.setSortingEnabled(True)
         self.table.itemSelectionChanged.connect(self.inspect)
+        self.table.cellClicked.connect(lambda row, column: self.inspect())
         self.visual_modes = QStackedWidget()
         self.visual_modes.addWidget(self.table)
         self.gallery = QListWidget()
@@ -280,10 +281,9 @@ class Biblioteca(QWidget):
         self.next_button.setEnabled(len(rows) == self.page_size)
 
     def inspect(self):
-        rows = self.table.selectedItems()
-        if not rows:
+        row = self.table.currentRow()
+        if row < 0 or any(self.table.item(row, col) is None for col in range(6)):
             return
-        row = rows[0].row()
         values = [self.table.item(row, col).text() for col in range(6)]
         self.media.setVisible(True)
         if self.media.selected != values[5]:
