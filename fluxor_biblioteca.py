@@ -102,6 +102,9 @@ class Biblioteca(QWidget):
         controls.addWidget(self.category)
         root.addLayout(controls)
         tools = QHBoxLayout()
+        self.size_filter = QComboBox()
+        self.size_filter.addItems(["Qualquer tamanho", "Acima de 10 MB", "Acima de 100 MB", "Acima de 1 GB"])
+        self.size_filter.currentTextChanged.connect(self.refresh)
         self.ext_filter = QLineEdit()
         self.ext_filter.setPlaceholderText("Extensão: .pdf")
         self.ext_filter.textChanged.connect(self.refresh)
@@ -118,6 +121,7 @@ class Biblioteca(QWidget):
         self.analysis_button.clicked.connect(self.diagnose)
         self.duplicates_button.clicked.connect(self.duplicates)
         tools.addWidget(self.ext_filter)
+        tools.addWidget(self.size_filter)
         tools.addWidget(self.analysis_button)
         tools.addWidget(self.versions_button)
         tools.addWidget(self.review_button)
@@ -230,7 +234,7 @@ class Biblioteca(QWidget):
         self.refresh()
 
     def refresh(self, *args):
-        if self.sender() in (self.search, self.category, self.ext_filter):
+        if self.sender() in (self.search, self.category, self.ext_filter, self.size_filter):
             self.offset = 0
         if not self.db.exists():
             return
@@ -249,6 +253,7 @@ class Biblioteca(QWidget):
                 self.db, text=self.search.text(),
                 category=None if selected == "Todas as categorias" else selected,
                 extension=self.ext_filter.text().strip() or None,
+                min_size=({1:10,2:100,3:1024}.get(self.size_filter.currentIndex()) or 0)*1024*1024 or None,
                 limit=self.page_size, offset=self.offset,
             )
         except Exception as error:
@@ -309,19 +314,15 @@ class Biblioteca(QWidget):
             self.status.setText("Interrupção solicitada...")
 
     def open_preview(self):
-        """Space key previews the selection in Fluxor without a popup."""
+        """Native popup is preserved; embedded media remains optional."""
         row = self.table.currentRow()
         item = self.table.item(row, 5) if row >= 0 else None
-        if item:
-            path = item.text()
-            self.media.setVisible(True)
-            if self.media.selected != path:
-                self.media.select_file(path)
-            from fluxor_core.media_policy import media_kind
-            if media_kind(path) == "video":
-                self.media.play_motion()
-            else:
-                self.media.show_still()
+        if item and sys.platform == "darwin":
+            import subprocess
+            path = Path(item.text())
+            if path.is_file():
+                subprocess.Popen(["qlmanage", "-p", str(path)],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def open_selected(self, item):
         import subprocess
