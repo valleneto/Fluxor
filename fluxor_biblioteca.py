@@ -13,6 +13,7 @@ from fluxor_core.library import index_folder, search_files, catalog_summary, sto
 from fluxor_core.duplicates import find_exact_duplicates
 from fluxor_core.intelligence import radar_report, version_candidates
 from fluxor_media import MediaPreview
+from fluxor_core.workspace import review_add, review_list, collection_add, collection_list
 
 
 class SortableItem(QTableWidgetItem):
@@ -79,7 +80,8 @@ class Biblioteca(QWidget):
         self.worker = None
         self.offset = 0
         self.page_size = 100
-        self.review_paths = set()
+        self.review_db = Path.home() / '.fluxor' / 'workspace.db'
+        self.review_paths = set(review_list(self.review_db))
         root = QVBoxLayout(self)
         title = QLabel("BIBLIOTECA  /  Explore seu acervo")
         title.setStyleSheet("font-size: 23px; font-weight: 700; color: #eaf6fa;")
@@ -108,6 +110,8 @@ class Biblioteca(QWidget):
         self.review_button.clicked.connect(self.add_review)
         self.review_list_button = QPushButton("Ver lista de revisão")
         self.review_list_button.clicked.connect(self.show_review)
+        self.collection_button = QPushButton("Salvar coleção")
+        self.collection_button.clicked.connect(self.save_collection)
         self.versions_button = QPushButton("Versões possíveis")
         self.versions_button.clicked.connect(self.show_versions)
         self.duplicates_button = QPushButton("Comparar duplicados")
@@ -118,6 +122,7 @@ class Biblioteca(QWidget):
         tools.addWidget(self.versions_button)
         tools.addWidget(self.review_button)
         tools.addWidget(self.review_list_button)
+        tools.addWidget(self.collection_button)
         tools.addStretch()
         root.addLayout(tools)
         advanced = QHBoxLayout()
@@ -331,15 +336,24 @@ class Biblioteca(QWidget):
         row = self.table.currentRow()
         item = self.table.item(row, 5) if row >= 0 else None
         if item:
+            review_add(self.review_db, item.text())
             self.review_paths.add(item.text())
             self.status.setText(f"Lista de revisão: {len(self.review_paths)} arquivos. Nenhuma alteração realizada.")
 
     def show_review(self):
         lines = ["LISTA DE REVISÃO — apenas nesta sessão, sem mover nem excluir arquivos."]
-        lines.extend(sorted(self.review_paths))
+        lines.extend(review_list(self.review_db))
         if not self.review_paths:
             lines.append("Selecione um arquivo e clique em Adicionar à revisão.")
         self.report.setPlainText("\n".join(lines))
+
+    def save_collection(self):
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "Coleção virtual", "Nome da coleção:")
+        if ok and name.strip():
+            collection_add(self.review_db, name, review_list(self.review_db))
+            self.report.setPlainText("Coleções virtuais (nenhum arquivo movido):\n" +
+                "\n".join(f"{title}: {count} itens" for title, count in collection_list(self.review_db)))
 
     def show_versions(self):
         if not self.db.exists():
