@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, QUrl, QProcess
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QFileDialog
 )
 from fluxor_core.media_policy import preview_allowed, media_kind, cloud_risk
 
@@ -28,7 +28,8 @@ class MediaPreview(QWidget):
 
         layout = QVBoxLayout(self)
         self.setObjectName("mediaPanel")
-        self.heading = QLabel("VISUALIZADOR")
+        self.setAcceptDrops(True)
+        self.heading = QLabel("VISUALIZADOR · INSPECTOR")
         self.heading.setObjectName("eyebrow")
         layout.addWidget(self.heading)
         self.stack = QStackedWidget()
@@ -40,19 +41,46 @@ class MediaPreview(QWidget):
         self.stack.addWidget(self.picture)
         layout.addWidget(self.stack)
         controls = QHBoxLayout()
+        self.pick_button = QPushButton("Escolher arquivo…")
+        self.pick_button.clicked.connect(self.pick_file)
         self.still_button = QPushButton("Mostrar quadro")
         self.motion_button = QPushButton("▶ Prévia · 4 s")
         self.stop_button = QPushButton("Parar")
         self.still_button.clicked.connect(self.show_still)
         self.motion_button.clicked.connect(self.play_motion)
         self.stop_button.clicked.connect(self.stop_motion)
-        for button in (self.still_button, self.motion_button, self.stop_button):
+        for button in (self.pick_button, self.still_button, self.motion_button, self.stop_button):
             controls.addWidget(button)
         layout.addLayout(controls)
-        self.note = QLabel("A prévia só é carregada quando você solicitar.")
+        self.note = QLabel("Selecione na Biblioteca, arraste mídia para cá ou clique Escolher arquivo.")
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         self.update_controls()
+
+    def pick_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Escolher mídia local", str(Path.home()),
+            "Mídia (*.mp4 *.mov *.m4v *.mkv *.avi *.webm *.jpg *.jpeg *.png *.webp *.heic);;Todos os arquivos (*)"
+        )
+        if path:
+            self.select_file(path)
+            self.show_still()
+
+    def dragEnterEvent(self, event):
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        if len(urls) == 1 and urls[0].isLocalFile() and media_kind(urls[0].toLocalFile()) != "other":
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        if len(urls) == 1 and urls[0].isLocalFile():
+            self.select_file(urls[0].toLocalFile())
+            self.show_still()
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def select_file(self, path):
         self.stop_motion()
@@ -62,14 +90,14 @@ class MediaPreview(QWidget):
         self.picture.clear()
         self.picture.setText("Selecione Mostrar quadro para carregar a prévia.")
         self.stack.setCurrentWidget(self.picture)
-        self.note.setText("Nada é decodificado automaticamente.")
+        self.note.setText("Arquivo selecionado: " + Path(self.selected).name if self.selected else "Selecione ou arraste uma imagem/vídeo.")
         self.update_controls()
 
     def update_controls(self):
         kind = media_kind(self.selected) if self.selected else "other"
         self.still_button.setEnabled(kind in ("image", "video"))
         self.motion_button.setEnabled(kind == "video")
-        self.stop_button.setEnabled(self.player is not None)
+        self.stop_button.setEnabled(self.player is not None and self.timer.isActive())
         if self.selected and cloud_risk(self.selected):
             self.still_button.setEnabled(False)
             self.motion_button.setEnabled(False)
