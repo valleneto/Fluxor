@@ -25,6 +25,9 @@ class MediaPreview(QWidget):
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.stop_motion)
+        self.start_timeout = QTimer(self)
+        self.start_timeout.setSingleShot(True)
+        self.start_timeout.timeout.connect(self.motion_start_failed)
 
         layout = QVBoxLayout(self)
         self.setObjectName("mediaPanel")
@@ -182,14 +185,27 @@ class MediaPreview(QWidget):
             self.stack.addWidget(self.video_surface)
             self.player.setVideoOutput(self.video_surface)
             self.player.errorOccurred.connect(self.player_error)
+            self.player.positionChanged.connect(self.on_position)
         self.timer.stop()
+        self.start_timeout.stop()
         self.player.stop()
         self.stack.setCurrentWidget(self.video_surface)
         self.player.setSource(QUrl.fromLocalFile(self.selected))
         self.player.play()
-        self.timer.start(4000)
-        self.note.setText("Prévia de 4 segundos dentro do Fluxor.")
+        self.start_timeout.start(15000)
+        self.note.setText("Preparando o vídeo... A contagem começa quando ele iniciar.")
         self.update_controls()
+
+    def on_position(self, position):
+        if position > 0 and self.start_timeout.isActive():
+            self.start_timeout.stop()
+            self.timer.start(4000)
+            self.note.setText("Reproduzindo trecho de 4 segundos dentro do Fluxor.")
+            self.update_controls()
+
+    def motion_start_failed(self):
+        self.stop_motion()
+        self.note.setText("Não foi possível iniciar o vídeo em 15 segundos. Use o Quick Look.")
 
     def player_error(self, *args):
         self.stop_motion()
@@ -197,6 +213,7 @@ class MediaPreview(QWidget):
 
     def stop_motion(self):
         self.timer.stop()
+        self.start_timeout.stop()
         if self.player is not None:
             self.player.stop()
             self.player.setSource(QUrl())
