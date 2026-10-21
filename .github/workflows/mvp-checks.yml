@@ -52,3 +52,6 @@ jobs:
 
       - name: OS011 local media policy
         run: python -m tests.test_os011
+
+      - name: OS012 persistent workspace
+        run: python -m tests.test_os012
