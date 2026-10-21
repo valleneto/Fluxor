@@ -3,10 +3,12 @@ import sys
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QStackedWidget, QMessageBox, QFrame,
+    QPushButton, QStackedWidget, QMessageBox, QFrame, QCheckBox,
 )
 from fluxor_biblioteca import Biblioteca
 from fluxor_app_integrado import FluxorIntegrado
+from fluxor_zen import ZenCore
+from fluxor_core.library import catalog_summary
 
 
 class Inicio(QWidget):
@@ -78,25 +80,45 @@ class Inicio(QWidget):
         self.pages = QStackedWidget()
         start = QWidget()
         start_layout = QVBoxLayout(start)
+        start_layout.setSpacing(14)
         title = QLabel("FLUXOR")
         title.setStyleSheet("font-size: 38px; font-weight: 800; letter-spacing: 3px; color: #8fe5e5;")
         start_layout.addWidget(title)
-        start_layout.addWidget(QLabel("Seus arquivos, suas decisões. Com clareza."))
-        start_layout.addWidget(QLabel("Descubra, compare, revise e organize — sem perder controle."))
-        browse = QPushButton("Explorar Biblioteca — sem mover arquivos")
-        organize = QPushButton("Organizar — prévia antes de copiar")
+        start_layout.addWidget(QLabel("Find what matters.  ·  Clareza para seu universo digital."))
+        center = QFrame()
+        center.setObjectName("sidebar")
+        center_layout = QVBoxLayout(center)
+        center_layout.setContentsMargins(22, 18, 22, 18)
+        self.zen = ZenCore(center)
+        center_layout.addWidget(self.zen, 1)
+        self.zen_state = QLabel("UM ESPAÇO PARA RESPIRAR")
+        self.zen_state.setAlignment(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
+        self.zen_state.setStyleSheet("font-size: 15px; font-weight: 700; color: #b5dbe1;")
+        center_layout.addWidget(self.zen_state)
+        self.home_stats = QLabel("Sua Biblioteca espera a primeira leitura.")
+        self.home_stats.setAlignment(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
+        center_layout.addWidget(self.home_stats)
+        start_layout.addWidget(center, 1)
+        actions = QHBoxLayout()
+        browse = QPushButton("Explorar Biblioteca  →")
+        organize = QPushButton("Organizar com segurança  →")
         browse.clicked.connect(lambda: self.navigate(1))
         organize.clicked.connect(lambda: self.navigate(2))
-        start_layout.addWidget(browse)
-        start_layout.addWidget(organize)
-        start_layout.addStretch()
-        start_layout.addWidget(QLabel("Beta experimental. Teste com pastas pequenas."))
+        actions.addWidget(browse)
+        actions.addStretch()
+        actions.addWidget(organize)
+        start_layout.addLayout(actions)
+        self.reduce_motion = QCheckBox("Reduzir movimento")
+        self.reduce_motion.toggled.connect(self.zen.set_reduced_motion)
+        start_layout.addWidget(self.reduce_motion)
+        start_layout.addWidget(QLabel("O centro visual indica atividade, não porcentagem de progresso."))
         self.pages.addWidget(start)
         self.library = Biblioteca()
         self.organizer = FluxorIntegrado()
         self.pages.addWidget(self.library)
         self.pages.addWidget(self.organizer)
         main.addWidget(self.pages)
+        self.refresh_zen()
         self.refresh_nav()
 
     def navigate(self, target):
@@ -112,7 +134,27 @@ class Inicio(QWidget):
         self.history.append(current)
         self.future.clear()
         self.pages.setCurrentIndex(target)
+        self.refresh_zen()
         self.refresh_nav()
+
+    def refresh_zen(self):
+        if self.library.thread is not None:
+            self.zen.set_state("scanning")
+            self.zen_state.setText("LENDO SEU ACERVO")
+        elif self.organizer.thread is not None:
+            self.zen.set_state("organizing")
+            self.zen_state.setText("ORGANIZANDO COM CUIDADO")
+        else:
+            self.zen.set_state("idle")
+            self.zen_state.setText("UM ESPAÇO PARA RESPIRAR")
+        if self.library.db.exists():
+            try:
+                info = catalog_summary(self.library.db)
+                self.home_stats.setText(f"{info['total']:,} arquivos catalogados  ·  {info['size'] / (1024**3):.2f} GB indexados")
+            except Exception:
+                self.home_stats.setText("Resumo da Biblioteca indisponível.")
+        else:
+            self.home_stats.setText("Escolha uma pasta na Biblioteca para começar.")
 
     def active_operation(self):
         return self.library.thread is not None or self.organizer.thread is not None
@@ -124,6 +166,7 @@ class Inicio(QWidget):
         target = self.history.pop()
         self.future.append(current)
         self.pages.setCurrentIndex(target)
+        self.refresh_zen()
         self.refresh_nav()
 
     def go_forward(self):
