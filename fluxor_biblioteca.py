@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget, QStyle, QSplitter,
+    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget, QStyle, QSplitter, QDialog, QDialogButtonBox,
 )
 from fluxor_core.library import index_folder, search_files, catalog_summary, storage_diagnosis
 from fluxor_core.duplicates import find_exact_duplicates
@@ -401,11 +401,42 @@ class Biblioteca(QWidget):
 
     def show_duplicates(self, data):
         self.report.setPlainText(
-            f"Grupos idênticos: {len(data['groups'])} | "
-            f"Espaço redundante potencial: {data['potential_redundant_bytes']} bytes\\n"
-            + "\\n".join(" = ".join(group["paths"]) for group in data["groups"][:12])
+            f"Duplicados verificados: {len(data['groups'])} grupos; "
+            f"volume redundante estimado: {data['potential_redundant_bytes']} bytes. "
+            "Nenhum arquivo será excluído."
         )
-        self.status.setText("Análise interrompida." if data["cancelled"] else "Comparação concluída. Nenhum arquivo foi excluído.")
+        if data["cancelled"]:
+            self.status.setText("Análise interrompida. Resultados parciais descartados.")
+            return
+        self.status.setText("Comparação concluída. Revise os arquivos antes de decidir.")
+        if not data["groups"]:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Duplicate Center · Revisão segura")
+        dialog.resize(680, 430)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Arquivos com conteúdo idêntico (SHA-256). Selecione para revisão, sem excluir."))
+        choices = QListWidget(dialog)
+        choices.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        for number, group in enumerate(data["groups"], 1):
+            for path in group["paths"]:
+                entry = QListWidgetItem(f"Grupo {number}  •  {path}")
+                entry.setData(Qt.ItemDataRole.UserRole, path)
+                choices.addItem(entry)
+        layout.addWidget(choices)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        add_button = buttons.addButton("Adicionar selecionados à revisão", QDialogButtonBox.ButtonRole.ActionRole)
+        def save_selected():
+            for entry in choices.selectedItems():
+                path = entry.data(Qt.ItemDataRole.UserRole)
+                review_add(self.review_db, path)
+                self.review_paths.add(path)
+            self.status.setText(f"Revisão: {len(self.review_paths)} arquivos salvos; nenhum original alterado.")
+            dialog.accept()
+        add_button.clicked.connect(save_selected)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     def closeEvent(self, event):
         if self.thread is not None:
