@@ -147,20 +147,20 @@ class MediaPreview(QWidget):
             return
         if self.player is None:
             self.player = QMediaPlayer(self)
-            # Never route audio to an output device: mute alone is unreliable on some Qt backends.
-            self.player.setAudioOutput(None)
+            self.output = QAudioOutput(self)
+            self.output.setVolume(0.5)
+            self.player.setAudioOutput(self.output)
             self.video_surface = QVideoWidget(self)
             self.stack.addWidget(self.video_surface)
             self.player.setVideoOutput(self.video_surface)
             self.player.errorOccurred.connect(self.player_error)
         self.timer.stop()
         self.player.stop()
-        self.player.setAudioOutput(None)
         self.stack.setCurrentWidget(self.video_surface)
         self.player.setSource(QUrl.fromLocalFile(self.selected))
         self.player.play()
         self.timer.start(4000)
-        self.note.setText("Trecho silencioso em reprodução. Parada automática em 4 segundos.")
+        self.note.setText("Prévia de 4 segundos dentro do Fluxor.")
         self.update_controls()
 
     def player_error(self, *args):
