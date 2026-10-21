@@ -61,6 +61,13 @@ class Inicio(QWidget):
         for button in (self.side_home, self.side_library, self.side_organize):
             side.addWidget(button)
         side.addStretch()
+        self.sidebar_zen = ZenCore(sidebar, compact=True)
+        self.sidebar_zen.setFixedHeight(130)
+        self.sidebar_zen.setVisible(False)
+        side.addWidget(self.sidebar_zen)
+        self.sidebar_activity = QLabel("Atividade em andamento")
+        self.sidebar_activity.setVisible(False)
+        side.addWidget(self.sidebar_activity)
         side.addWidget(QLabel("BETA  •  Seus arquivos permanecem seus."))
         root.addWidget(sidebar)
         main = QVBoxLayout()
@@ -111,6 +118,7 @@ class Inicio(QWidget):
         start_layout.addLayout(actions)
         self.reduce_motion = QCheckBox("Reduzir movimento")
         self.reduce_motion.toggled.connect(self.zen.set_reduced_motion)
+        self.reduce_motion.toggled.connect(self.sidebar_zen.set_reduced_motion)
         start_layout.addWidget(self.reduce_motion)
         start_layout.addWidget(QLabel("O centro visual indica atividade, não porcentagem de progresso."))
         self.pages.addWidget(start)
@@ -145,6 +153,13 @@ class Inicio(QWidget):
 
     def poll_activity(self):
         active = self.active_operation()
+        self.sidebar_zen.setVisible(active)
+        self.sidebar_activity.setVisible(active)
+        if active:
+            status = "scanning" if self.library.thread is not None else "organizing"
+            self.sidebar_zen.set_state(status)
+            self.sidebar_activity.setText("Indexando..." if status == "scanning" else "Organizando...")
+            self.sidebar_zen.set_reduced_motion(self.reduce_motion.isChecked())
         if active != self.was_active:
             self.was_active = active
             if not active:
