@@ -11,12 +11,12 @@ def phase_for_state(state):
 
 class ZenCore(QWidget):
     """Calm procedural sand-like rings; repaint at most 20 fps while visible."""
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, compact=False):
         super().__init__(parent)
         self.state = "idle"
         self.phase = 0.0
         self.reduced_motion = False
-        self.setMinimumSize(260, 240)
+        self.setMinimumSize(100, 100) if compact else self.setMinimumSize(260, 240)
         self.timer = QTimer(self)
         self.timer.setInterval(50)
         self.timer.timeout.connect(self.advance)
