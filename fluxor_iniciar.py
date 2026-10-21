@@ -15,12 +15,25 @@ class Inicio(QWidget):
         self.setWindowTitle("Fluxor Control — Beta")
         self.resize(1000, 700)
         self.setStyleSheet("""
-            QWidget { font-size: 13px; }
-            QPushButton { padding: 8px 12px; border-radius: 8px; }
-            QPushButton:hover { background-color: palette(midlight); }
-            QPushButton:disabled { color: palette(mid); }
-            QLineEdit, QComboBox { padding: 6px; border-radius: 6px; }
-            QTableWidget { gridline-color: palette(midlight); }
+            QWidget { background-color: #101720; color: #eef4fa; font-family: 'Helvetica Neue'; font-size: 13px; }
+            QLabel { background: transparent; }
+            QLabel#eyebrow { color: #81c9d0; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+            QPushButton { background: #202d3d; color: #e9f2fa; border: 1px solid #314358;
+                          padding: 9px 14px; border-radius: 9px; }
+            QPushButton:hover { background: #2b4053; border-color: #5cbac5; }
+            QPushButton:pressed { background: #24565e; }
+            QPushButton:disabled { color: #718194; background: #182330; border-color: #243141; }
+            QLineEdit, QComboBox { background: #182433; border: 1px solid #314358;
+                                  padding: 8px; border-radius: 8px; selection-background-color: #287987; }
+            QTableWidget, QListWidget, QTextEdit { background: #151f2c; alternate-background-color: #1b2939;
+                        color: #e6eff7; border: 1px solid #304255; border-radius: 11px;
+                        gridline-color: #253547; selection-background-color: #225864; }
+            QHeaderView::section { background: #243347; color: #d8e5f0; border: none;
+                                   border-right: 1px solid #33465b; padding: 9px; }
+            QStackedWidget { border: none; }
+            QWidget#mediaPanel { background: #182433; border: 1px solid #304255; border-radius: 14px; }
+            QScrollBar:vertical { background: #14202d; width: 10px; }
+            QScrollBar::handle:vertical { background: #43566b; border-radius: 4px; min-height: 22px; }
         """)
         self.history = []
         self.future = []
@@ -42,7 +55,7 @@ class Inicio(QWidget):
         start = QWidget()
         start_layout = QVBoxLayout(start)
         title = QLabel("FLUXOR")
-        title.setStyleSheet("font-size: 30px; font-weight: bold;")
+        title.setStyleSheet("font-size: 38px; font-weight: 800; letter-spacing: 3px; color: #8fe5e5;")
         start_layout.addWidget(title)
         start_layout.addWidget(QLabel("Encontre o que importa. Organize com segurança."))
         start_layout.addWidget(QLabel("Biblioteca: consulta sem mover. Organizar: cópia após prévia."))
