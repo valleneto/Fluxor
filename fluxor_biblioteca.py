@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget, QStyle,
+    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget, QStyle, QSplitter,
 )
 from fluxor_core.library import index_folder, search_files, catalog_summary, storage_diagnosis
 from fluxor_core.duplicates import find_exact_duplicates
@@ -156,7 +156,9 @@ class Biblioteca(QWidget):
         self.gallery_button = QPushButton("Alternar lista / galeria")
         self.gallery_button.clicked.connect(self.toggle_gallery)
         root.addWidget(self.gallery_button)
-        root.addWidget(self.visual_modes)
+        self.browser_split = QSplitter(Qt.Orientation.Horizontal)
+        self.browser_split.addWidget(self.visual_modes)
+        root.addWidget(self.browser_split)
         pages = QHBoxLayout()
         self.prev_button = QPushButton("← Anteriores")
         self.next_button = QPushButton("Próximos →")
@@ -169,11 +171,12 @@ class Biblioteca(QWidget):
         self.quicklook.activated.connect(self.open_preview)
         self.inspector = QLabel("Selecione um arquivo para conferir seus dados. Clique duas vezes para abrir com o aplicativo padrão.")
         self.inspector.setWordWrap(True)
-        root.addWidget(self.inspector)
+        self.inspector.setVisible(False)
         self.media = MediaPreview(self)
+        self.browser_split.addWidget(self.media)
+        self.browser_split.setStretchFactor(0, 3)
+        self.browser_split.setStretchFactor(1, 2)
         self.media.setVisible(False)
-        self.media.setMaximumHeight(365)
-        root.addWidget(self.media)
         self.table.itemDoubleClicked.connect(self.open_selected)
         self.refresh()
 
@@ -272,7 +275,8 @@ class Biblioteca(QWidget):
         row = rows[0].row()
         values = [self.table.item(row, col).text() for col in range(6)]
         self.media.setVisible(True)
-        self.media.select_file(values[5])
+        if self.media.selected != values[5]:
+            self.media.select_file(values[5])
         self.inspector.setText(
             f"Arquivo: {values[0]}  |  Categoria: {values[1]}  |  "
             f"Tamanho: {values[3]} bytes  |  Alterado: {values[4]}  |  "
@@ -299,14 +303,19 @@ class Biblioteca(QWidget):
             self.status.setText("Interrupção solicitada...")
 
     def open_preview(self):
+        """Space key previews the selection in Fluxor without a popup."""
         row = self.table.currentRow()
         item = self.table.item(row, 5) if row >= 0 else None
-        if item and sys.platform == "darwin":
-            path = Path(item.text())
-            if path.is_file():
-                import subprocess
-                subprocess.Popen(["qlmanage", "-p", str(path)],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if item:
+            path = item.text()
+            self.media.setVisible(True)
+            if self.media.selected != path:
+                self.media.select_file(path)
+            from fluxor_core.media_policy import media_kind
+            if media_kind(path) == "video":
+                self.media.play_motion()
+            else:
+                self.media.show_still()
 
     def open_selected(self, item):
         import subprocess
