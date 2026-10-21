@@ -1,5 +1,6 @@
 """Fluxor Control — single-window navigation with preserved page state."""
 import sys
+from PySide6.QtCore import QTimer
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -119,6 +120,11 @@ class Inicio(QWidget):
         self.pages.addWidget(self.organizer)
         main.addWidget(self.pages)
         self.refresh_zen()
+        self.activity_poll = QTimer(self)
+        self.activity_poll.setInterval(700)
+        self.activity_poll.timeout.connect(self.poll_activity)
+        self.activity_poll.start()
+        self.was_active = False
         self.refresh_nav()
 
     def navigate(self, target):
@@ -137,6 +143,17 @@ class Inicio(QWidget):
         self.refresh_zen()
         self.refresh_nav()
 
+    def poll_activity(self):
+        active = self.active_operation()
+        if active != self.was_active:
+            self.was_active = active
+            if not active:
+                self.zen.set_state("complete")
+                self.zen_state.setText("PROCESSO CONCLUÍDO")
+                QTimer.singleShot(2300, self.refresh_zen)
+            else:
+                self.refresh_zen()
+
     def refresh_zen(self):
         if self.library.thread is not None:
             self.zen.set_state("scanning")
@@ -147,6 +164,8 @@ class Inicio(QWidget):
         else:
             self.zen.set_state("idle")
             self.zen_state.setText("UM ESPAÇO PARA RESPIRAR")
+        if self.pages.currentIndex() != 0:
+            return
         if self.library.db.exists():
             try:
                 info = catalog_summary(self.library.db)
