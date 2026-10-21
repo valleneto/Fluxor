@@ -3,7 +3,7 @@ import sys
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QStackedWidget, QMessageBox,
+    QPushButton, QStackedWidget, QMessageBox, QFrame,
 )
 from fluxor_biblioteca import Biblioteca
 from fluxor_app_integrado import FluxorIntegrado
@@ -12,8 +12,8 @@ from fluxor_app_integrado import FluxorIntegrado
 class Inicio(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Fluxor Control — Beta")
-        self.resize(1000, 700)
+        self.setWindowTitle("FLUXOR — Find what matters")
+        self.resize(1220, 760)
         self.setStyleSheet("""
             QWidget { background-color: #101720; color: #eef4fa; font-family: 'Helvetica Neue'; font-size: 13px; }
             QLabel { background: transparent; }
@@ -32,12 +32,36 @@ class Inicio(QWidget):
                                    border-right: 1px solid #33465b; padding: 9px; }
             QStackedWidget { border: none; }
             QWidget#mediaPanel { background: #182433; border: 1px solid #304255; border-radius: 14px; }
+            QFrame#sidebar { background: #172331; border: 1px solid #314358; border-radius: 13px; }
             QScrollBar:vertical { background: #14202d; width: 10px; }
             QScrollBar::handle:vertical { background: #43566b; border-radius: 4px; min-height: 22px; }
         """)
         self.history = []
         self.future = []
-        root = QVBoxLayout(self)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(14)
+        sidebar = QFrame()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(205)
+        side = QVBoxLayout(sidebar)
+        wordmark = QLabel("◈  FLUXOR")
+        wordmark.setStyleSheet("color: #8fe5e5; font-size: 23px; font-weight: 800; padding: 18px 4px;")
+        side.addWidget(wordmark)
+        side.addWidget(QLabel("Find what matters."))
+        self.side_home = QPushButton("⌂   Visão geral")
+        self.side_library = QPushButton("▤   Biblioteca")
+        self.side_organize = QPushButton("◈   Organização segura")
+        self.side_home.clicked.connect(lambda: self.navigate(0))
+        self.side_library.clicked.connect(lambda: self.navigate(1))
+        self.side_organize.clicked.connect(lambda: self.navigate(2))
+        for button in (self.side_home, self.side_library, self.side_organize):
+            side.addWidget(button)
+        side.addStretch()
+        side.addWidget(QLabel("BETA  •  Seus arquivos permanecem seus."))
+        root.addWidget(sidebar)
+        main = QVBoxLayout()
+        root.addLayout(main, 1)
 
         nav = QHBoxLayout()
         self.back_button = QPushButton("← Voltar")
@@ -49,7 +73,7 @@ class Inicio(QWidget):
         for button in (self.back_button, self.forward_button, self.home_button):
             nav.addWidget(button)
         nav.addStretch()
-        root.addLayout(nav)
+        main.addLayout(nav)
 
         self.pages = QStackedWidget()
         start = QWidget()
@@ -57,8 +81,8 @@ class Inicio(QWidget):
         title = QLabel("FLUXOR")
         title.setStyleSheet("font-size: 38px; font-weight: 800; letter-spacing: 3px; color: #8fe5e5;")
         start_layout.addWidget(title)
-        start_layout.addWidget(QLabel("Encontre o que importa. Organize com segurança."))
-        start_layout.addWidget(QLabel("Biblioteca: consulta sem mover. Organizar: cópia após prévia."))
+        start_layout.addWidget(QLabel("Seus arquivos, suas decisões. Com clareza."))
+        start_layout.addWidget(QLabel("Descubra, compare, revise e organize — sem perder controle."))
         browse = QPushButton("Explorar Biblioteca — sem mover arquivos")
         organize = QPushButton("Organizar — prévia antes de copiar")
         browse.clicked.connect(lambda: self.navigate(1))
@@ -72,7 +96,7 @@ class Inicio(QWidget):
         self.organizer = FluxorIntegrado()
         self.pages.addWidget(self.library)
         self.pages.addWidget(self.organizer)
-        root.addWidget(self.pages)
+        main.addWidget(self.pages)
         self.refresh_nav()
 
     def navigate(self, target):
