@@ -4,7 +4,7 @@ from fluxor_core.classifier import classificar_arquivo
 
 
 def escanear_pasta(caminho_pasta):
-    pasta = Path(caminho_pasta)
+    pasta = Path(caminho_pasta).expanduser().resolve()
 
     if not pasta.exists():
         raise FileNotFoundError(f"Pasta não encontrada: {pasta}")
@@ -17,7 +17,7 @@ def escanear_pasta(caminho_pasta):
     tamanho_total = 0
 
     for item in pasta.iterdir():
-        if not item.is_file():
+        if item.is_symlink() or not item.is_file():
             continue
 
         categoria = classificar_arquivo(item)

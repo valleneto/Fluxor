@@ -1,0 +1,60 @@
+name: Fluxor MVP checks
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Syntax check
+        run: python -m compileall -q fluxor_core tests fluxor_app_integrado.py fluxor_biblioteca.py fluxor_iniciar.py fluxor_mvp_v2.py fluxor_media.py fluxor_zen.py
+      - name: Classifier
+        run: python -m tests.test_classifier
+      - name: Organizer in temporary directory
+        run: python -m tests.test_organizer
+      - name: Scanner
+        run: python -m tests.test_scanner
+      - name: Safety regression
+        run: python -m tests.test_seguranca
+
+      - name: Preview plan and modes
+        run: python -m tests.test_plan
+
+      - name: SQLite library
+        run: python -m tests.test_library
+
+      - name: OS005 SHA-256 and capacity safety
+        run: python -m tests.test_os005
+
+      - name: OS007 Find and Fix
+        run: python -m tests.test_os007
+
+      - name: OS007 performance smoke
+        run: python -m tests.test_os007_performance
+
+      - name: OS008 paging and cancellation
+        run: python -m tests.test_os008
+
+      - name: OS009 copy safety
+        run: python -m tests.test_os009
+
+      - name: OS010 Radar and Versions
+        run: python -m tests.test_os010
+
+      - name: OS011 local media policy
+        run: python -m tests.test_os011
+
+      - name: OS012 persistent workspace
+        run: python -m tests.test_os012
+
+      - name: OS013 Zen Core policy
+        run: python -m tests.test_os013
