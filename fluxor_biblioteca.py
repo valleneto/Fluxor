@@ -28,6 +28,7 @@ class SortableItem(QTableWidgetItem):
 
 
 class IndexWorker(QObject):
+    progress = Signal(int)
     finished = Signal(dict)
     error = Signal(str)
     cancelled = Signal(str)
@@ -45,7 +46,7 @@ class IndexWorker(QObject):
     @Slot()
     def run(self):
         try:
-            self.finished.emit(index_folder(self.folder, self.db, cancel=lambda: self.cancel_requested))
+            self.finished.emit(index_folder(self.folder, self.db, cancel=lambda: self.cancel_requested, progress=self.progress.emit))
         except InterruptedError as error:
             self.cancelled.emit(str(error))
         except Exception as error:
@@ -215,6 +216,7 @@ class Biblioteca(QWidget):
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(lambda result: self.indexed(folder, result))
+        self.worker.progress.connect(lambda amount: self.status.setText(f"Indexando... {amount:,} arquivos examinados."))
         self.worker.error.connect(self.failed)
         self.worker.cancelled.connect(self.index_cancelled)
         self.worker.done.connect(self.thread.quit)
