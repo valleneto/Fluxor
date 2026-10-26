@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtGui import QImage, QColor
+from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QApplication
 from fluxor_core.library import index_folder
 from fluxor_iniciar import Inicio
@@ -32,10 +33,22 @@ def main():
         app.processEvents()
         assert window.pages.count() == 3
         assert window.zen is not None
+        window.resize(1100, 700)
         window.navigate(1)
         window.library.refresh()
         app.processEvents()
         assert window.library.table.rowCount() == 1
+        # Regression: all primary actions must fit on a 13-inch laptop window.
+        for button in (
+            window.library.analysis_button,
+            window.library.versions_button,
+            window.library.duplicates_button,
+            window.library.review_button,
+            window.library.review_list_button,
+            window.library.collection_button,
+        ):
+            right = button.mapTo(window, QPoint(button.width(), 0)).x()
+            assert right <= window.width(), (button.text(), right, window.width())
         window.library.table.setCurrentCell(0, 0)
         window.library.inspect()
         app.processEvents()
