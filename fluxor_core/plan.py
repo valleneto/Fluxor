@@ -41,7 +41,8 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True):
                 continue
             try:
                 categoria = _categoria(item, modo)
-                tamanho = item.stat().st_size
+                info = item.stat()
+                tamanho = info.st_size
             except OSError as erro:
                 avisos.append(f"{item}: {erro}")
                 continue
@@ -50,6 +51,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True):
                 "categoria": categoria,
                 "destino_relativo": str(Path(categoria) / item.name),
                 "tamanho": tamanho,
+                "modified_ns": info.st_mtime_ns,
             })
     return {
         "origem": str(origem),
@@ -119,7 +121,8 @@ def executar_plano(plano, progresso=None, cancelar=None):
                 raise ValueError("Destino contem link simbolico.")
             if pasta != base and base not in pasta.parents:
                 raise ValueError("Destino fora da pasta organizada.")
-            if arquivo.stat().st_size != int(entrada["tamanho"]):
+            before = arquivo.stat()
+            if before.st_size != int(entrada["tamanho"]) or (entrada.get("modified_ns") is not None and before.st_mtime_ns != int(entrada["modified_ns"])):
                 raise OSError("Origem mudou desde a previa; planeje novamente.")
             # Exclusively create names; never overwrite on collisions.
             tentativas = 0
@@ -142,7 +145,10 @@ def executar_plano(plano, progresso=None, cancelar=None):
                     if tentativas > 10000:
                         raise OSError("Muitos arquivos com nome repetido.")
             shutil.copystat(arquivo, saida)
-            if arquivo.stat().st_size != saida.stat().st_size:
+            after = arquivo.stat()
+            if (after.st_size, after.st_mtime_ns, after.st_ino) != (before.st_size, before.st_mtime_ns, before.st_ino):
+                raise OSError("Origem mudou durante a cópia; resultado descartado.")
+            if after.st_size != saida.stat().st_size:
                 raise OSError("Tamanho copiado diferente do original.")
             if sha256_arquivo(arquivo) != sha256_arquivo(saida):
                 raise OSError("SHA-256 da copia diferente do original.")
