@@ -119,7 +119,7 @@ def search_files(database_path, text="", category=None, project=None, limit=500,
              "FROM files")
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
-    order = {'name':'name COLLATE NOCASE', 'size':'size', 'modified':'modified', 'category':'category COLLATE NOCASE'}.get(sort, 'modified')
+    order = {'name':'name COLLATE NOCASE', 'size':'size', 'modified':'modified', 'category':'category COLLATE NOCASE', 'project':'project COLLATE NOCASE'}.get(sort, 'modified')
     query += ' ORDER BY ' + order + (' DESC' if descending else ' ASC') + ', path LIMIT ? OFFSET ?'
     params.extend((limit, max(0, int(offset))))
     with sqlite3.connect(database_path) as con:
