@@ -69,10 +69,28 @@ def test_cloud_skip_and_local_equality():
         assert all((source / name).read_bytes() == b"same content" for name in ("a.dat", "b.dat"))
 
 
+def test_changed_since_index():
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp) / "input"
+        root.mkdir()
+        (root / "a.bin").write_bytes(b"alpha")
+        (root / "b.bin").write_bytes(b"alpha")
+        database = Path(tmp) / "catalog.sqlite3"
+        library.index_folder(root, database)
+        import os
+        changed = root / "b.bin"
+        metadata = changed.stat()
+        os.utime(changed, ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 100_000_000))
+        report = find_exact_duplicates(database)
+        assert report["groups"] == []
+        assert any(item["path"] == str(changed) and "alterado" in item["error"] for item in report["errors"])
+
+
 def main():
     test_index_rollback()
     test_workspace_rollback()
     test_cloud_skip_and_local_equality()
+    test_changed_since_index()
     print("OS014 atomic index, workspace rollback and cloud policy tests passed")
 
 
