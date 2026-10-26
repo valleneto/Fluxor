@@ -36,6 +36,25 @@ def test_index_rollback():
         assert library.catalog_summary(database) == before
 
 
+def test_index_cancel_rollback():
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        source = base / "source"
+        source.mkdir()
+        (source / "a.txt").write_text("first")
+        database = base / "catalog.sqlite3"
+        library.index_folder(source, database)
+        before = library.catalog_summary(database)
+        (source / "b.txt").write_text("second")
+        try:
+            library.index_folder(source, database, cancel=lambda: True)
+        except InterruptedError:
+            pass
+        else:
+            raise AssertionError("expected cancellation")
+        assert library.catalog_summary(database) == before
+
+
 def test_workspace_rollback():
     with TemporaryDirectory() as tmp:
         database = Path(tmp) / "review.sqlite3"
@@ -88,6 +107,7 @@ def test_changed_since_index():
 
 def main():
     test_index_rollback()
+    test_index_cancel_rollback()
     test_workspace_rollback()
     test_cloud_skip_and_local_equality()
     test_changed_since_index()
