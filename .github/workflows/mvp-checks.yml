@@ -62,6 +62,9 @@ jobs:
       - name: OS014 rollback and file integrity
         run: python -m tests.test_os014
 
+      - name: OS014 synthetic 50k performance
+        run: python -m tests.test_os014_performance
+
       - name: Qt offscreen GUI integration
         env:
           QT_QPA_PLATFORM: offscreen
