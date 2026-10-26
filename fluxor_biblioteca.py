@@ -305,6 +305,7 @@ class Biblioteca(QWidget):
         self.media.setVisible(True)
         if self.media.selected != values[5]:
             self.media.select_file(values[5])
+        self.media.set_metadata(values)
         self.inspector.setText(
             f"Arquivo: {values[0]}  |  Categoria: {values[1]}  |  "
             f"Tamanho: {values[3]} bytes  |  Alterado: {values[4]}  |  "
