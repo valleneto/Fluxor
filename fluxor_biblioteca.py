@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from PySide6.QtGui import QShortcut, QKeySequence
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
@@ -14,6 +14,14 @@ from fluxor_core.duplicates import find_exact_duplicates
 from fluxor_core.intelligence import radar_report, version_candidates
 from fluxor_media import MediaPreview
 from fluxor_core.workspace import review_add, review_list, collection_add, collection_list
+
+
+def human_size(value):
+    size = float(value)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
 
 
 class SortableItem(QTableWidgetItem):
@@ -102,7 +110,11 @@ class Biblioteca(QWidget):
         self.index_button.clicked.connect(self.choose_folder)
         self.search = QLineEdit()
         self.search.setPlaceholderText("⌕  Buscar arquivos pelo nome...")
-        self.search.textChanged.connect(self.refresh)
+        self.search_timer = QTimer(self)
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(180)
+        self.search_timer.timeout.connect(self.refresh)
+        self.search.textChanged.connect(self.delayed_refresh)
         self.category = QComboBox()
         self.category.addItem("Todas as categorias")
         self.category.currentTextChanged.connect(self.refresh)
@@ -116,7 +128,7 @@ class Biblioteca(QWidget):
         self.size_filter.currentTextChanged.connect(self.refresh)
         self.ext_filter = QLineEdit()
         self.ext_filter.setPlaceholderText("Extensão: .pdf")
-        self.ext_filter.textChanged.connect(self.refresh)
+        self.ext_filter.textChanged.connect(self.delayed_refresh)
         self.analysis_button = QPushButton("Radar · Descobertas")
         self.review_button = QPushButton("Adicionar à revisão")
         self.review_button.clicked.connect(self.add_review)
@@ -249,6 +261,10 @@ class Biblioteca(QWidget):
         self.versions_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
 
+    def delayed_refresh(self, *args):
+        self.offset = 0
+        self.search_timer.start()
+
     def turn_page(self, direction):
         self.offset = max(0, self.offset + direction * self.page_size)
         self.refresh()
@@ -283,7 +299,7 @@ class Biblioteca(QWidget):
         self.table.setRowCount(len(rows))
         for i, row in enumerate(rows):
             from datetime import datetime
-            values = (row["name"], row["category"], row["project"], row["size"],
+            values = (row["name"], row["category"], row["project"], human_size(row["size"]),
                       datetime.fromtimestamp(row["modified"]).strftime("%d/%m/%Y %H:%M"), row["path"])
             for j, value in enumerate(values):
                 cell = SortableItem(value, row["size"] if j == 3 else row["modified"] if j == 4 else None)
