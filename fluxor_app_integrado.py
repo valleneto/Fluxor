@@ -61,6 +61,7 @@ class FluxorIntegrado(QWidget):
         self.thread = None
         self.worker = None
         self.tarefa = None
+        self.last_outcome = 'idle'
 
         root = QVBoxLayout(self)
         titulo = QLabel("FLUXOR  |  Organização consciente")
@@ -153,6 +154,7 @@ class FluxorIntegrado(QWidget):
             QMessageBox.warning(self, "Prévia", "Faça a prévia antes de organizar.")
             return
         self.tarefa = tipo
+        self.last_outcome = "running"
         self.logs.clear()
         self.barra.setValue(0)
         self.status.setText("Analisando..." if tipo == "preview" else "Copiando arquivos...")
@@ -178,6 +180,7 @@ class FluxorIntegrado(QWidget):
         self.status.setText(f"Processados {atual}/{total}")
 
     def pronto(self, resultado):
+        self.last_outcome = ("partial" if resultado["avisos"] else "success") if self.tarefa == "preview" else ("cancelled" if resultado["cancelado"] else "partial" if resultado["total_erros"] else "success")
         if self.tarefa == "preview":
             self.plano = resultado
             self.logs.append(f"Arquivos: {resultado['total_arquivos']}")
@@ -207,6 +210,7 @@ class FluxorIntegrado(QWidget):
                 self.barra.setValue(100)
 
     def falha(self, mensagem):
+        self.last_outcome = "error"
         self.plano = None
         self.status.setText("Falha na operação.")
         self.logs.append(f"ERRO: {mensagem}")
