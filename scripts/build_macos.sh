@@ -18,6 +18,7 @@ python3 -m pip show pyinstaller >/dev/null || {
 python3 -m PyInstaller --noconfirm --clean --windowed --name "Fluxor Control" \
   --hidden-import PySide6.QtMultimedia \
   --hidden-import PySide6.QtMultimediaWidgets \
+  --add-data "assets/fluxor_logo.png:assets" \
   --collect-submodules fluxor_core \
   fluxor_iniciar.py
 echo "Build local gerado em dist/Fluxor Control.app"
