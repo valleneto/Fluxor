@@ -37,7 +37,7 @@ def suggest_project(relative_path):
     return parent.parts[0]
 
 
-def index_folder(root, database_path, recursive=True, cancel=None):
+def index_folder(root, database_path, recursive=True, cancel=None, progress=None):
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise ValueError("A origem deve ser uma pasta existente.")
@@ -79,6 +79,8 @@ def index_folder(root, database_path, recursive=True, cancel=None):
                         batch.append(record)
                         indexed += 1
                         bytes_total += info.st_size
+                        if progress and indexed % 100 == 0:
+                            progress(indexed)
                         if len(batch) >= 500:
                             con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
                             batch.clear()
