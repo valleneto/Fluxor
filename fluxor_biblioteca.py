@@ -146,18 +146,25 @@ class Biblioteca(QWidget):
         self.duplicates_button = QPushButton("Comparar duplicados")
         self.analysis_button.clicked.connect(self.diagnose)
         self.duplicates_button.clicked.connect(self.duplicates)
-        tools.addWidget(self.ext_filter)
+        # Keep controls usable on 13-inch laptop viewports: avoid one oversized row.
+        tools.addWidget(self.ext_filter, 1)
         tools.addWidget(self.size_filter)
         tools.addWidget(self.project_filter)
-        tools.addWidget(self.analysis_button)
-        tools.addWidget(self.versions_button)
-        tools.addWidget(self.review_button)
-        tools.addWidget(self.review_list_button)
-        tools.addWidget(self.collection_button)
-        tools.addStretch()
         root.addLayout(tools)
+
+        analysis_actions = QHBoxLayout()
+        for button in (self.analysis_button, self.versions_button, self.duplicates_button):
+            analysis_actions.addWidget(button)
+        analysis_actions.addStretch()
+        root.addLayout(analysis_actions)
+
+        review_actions = QHBoxLayout()
+        for button in (self.review_button, self.review_list_button, self.collection_button):
+            review_actions.addWidget(button)
+        review_actions.addStretch()
+        root.addLayout(review_actions)
+
         advanced = QHBoxLayout()
-        advanced.addWidget(self.duplicates_button)
         self.cancel_button = QPushButton("Interromper análise")
         self.cancel_button.setEnabled(False)
         self.cancel_button.clicked.connect(self.cancel_scan)
