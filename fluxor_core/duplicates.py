@@ -3,6 +3,7 @@ import sqlite3
 from pathlib import Path
 from collections import defaultdict
 import hashlib
+from fluxor_core.media_policy import cloud_risk
 
 
 def _hash_with_cancel(path, cancel):
@@ -39,13 +40,24 @@ def find_exact_duplicates(database_path, cancel=None, progress=None):
                 break
             try:
                 item = Path(path)
-                if item.is_symlink() or not item.is_file() or item.stat().st_size != size:
+                if cloud_risk(item):
+                    errors.append({"path": path, "error": "Possível arquivo em nuvem; ignorado para evitar download."})
+                    continue
+                if item.is_symlink() or not item.is_file():
+                    continue
+                before = item.stat()
+                if before.st_size != size:
+                    errors.append({"path": path, "error": "Arquivo alterado desde a indexação."})
                     continue
                 digest = _hash_with_cancel(item, cancel)
                 if digest is None:
                     interrupted = True
                     break
-                if item.stat().st_size != size:
+                after = item.stat()
+                if (after.st_size, after.st_mtime_ns, after.st_ino, after.st_dev) != (
+                    before.st_size, before.st_mtime_ns, before.st_ino, before.st_dev
+                ):
+                    errors.append({"path": path, "error": "Arquivo mudou durante a leitura; ignorado."})
                     continue
                 found[(size, digest)].append(path)
             except OSError as error:
