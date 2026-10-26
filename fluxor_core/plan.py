@@ -22,7 +22,7 @@ def _categoria(item, modo):
     return f"{data.year}/{data.month:02d}"
 
 
-def planejar(origem, destino, modo="Por tipo", recursivo=True):
+def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None):
     if modo not in MODOS:
         raise ValueError("Modo de organizacao invalido.")
     origem, destino = validar_pastas(origem, destino)
@@ -30,12 +30,16 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True):
     avisos = []
     # No symlink folders and no symlink files; avoid copying macOS packages.
     for pasta, subpastas, nomes in os.walk(origem, followlinks=False):
+        if cancelar and cancelar():
+            raise InterruptedError("Prévia interrompida pelo usuário.")
         subpastas[:] = sorted(
             d for d in subpastas
             if not (Path(pasta) / d).is_symlink()
             and not d.lower().endswith((".app", ".bundle", ".photoslibrary", ".pkg"))
         ) if recursivo else []
         for nome in sorted(nomes):
+            if cancelar and cancelar():
+                raise InterruptedError("Prévia interrompida pelo usuário.")
             item = Path(pasta) / nome
             if item.is_symlink() or not item.is_file():
                 continue
