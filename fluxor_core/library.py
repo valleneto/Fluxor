@@ -4,6 +4,7 @@ The database stores metadata and paths, never file contents.
 """
 import os
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from fluxor_core.classifier import classificar_arquivo
@@ -23,6 +24,8 @@ CREATE TABLE IF NOT EXISTS files (
 CREATE INDEX IF NOT EXISTS idx_files_name ON files(name);
 CREATE INDEX IF NOT EXISTS idx_files_category ON files(category);
 CREATE INDEX IF NOT EXISTS idx_files_modified ON files(modified);
+CREATE INDEX IF NOT EXISTS idx_files_size ON files(size);
+CREATE INDEX IF NOT EXISTS idx_files_project ON files(project);
 """
 
 
@@ -47,41 +50,39 @@ def index_folder(root, database_path, recursive=True):
     indexed = 0
     bytes_total = 0
     batch = []
-    con = sqlite3.connect(database_path)
-    con.executescript(SCHEMA)
-    con.execute('BEGIN')
-    con.execute('DELETE FROM files WHERE root=?', (str(root),))
-    for folder, subdirs, names in os.walk(root, followlinks=False):
-        subdirs[:] = sorted(
-            name for name in subdirs
-            if not (Path(folder) / name).is_symlink()
-            and not name.lower().endswith((".app", ".bundle", ".photoslibrary", ".pkg"))
-        ) if recursive else []
-        for name in sorted(names):
-            item = Path(folder) / name
-            if item.is_symlink() or not item.is_file():
-                continue
-            try:
-                info = item.stat()
-                relative = item.relative_to(root)
-                record = (
-                    str(item), str(root), item.name,
-                    classificar_arquivo(item), item.suffix.lower(),
-                    info.st_size, info.st_mtime, suggest_project(relative),
-                )
-                batch.append(record)
-                indexed += 1
-                bytes_total += info.st_size
-                if len(batch) >= 500:
-                    con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
-                    batch.clear()
-            except OSError as error:
-                warnings.append(f"{item}: {error}")
+    with closing(sqlite3.connect(database_path)) as con:
+        con.executescript(SCHEMA)
+        with con:
+            con.execute("DELETE FROM files WHERE root=?", (str(root),))
+            for folder, subdirs, names in os.walk(root, followlinks=False):
+                subdirs[:] = sorted(
+                    name for name in subdirs
+                    if not (Path(folder) / name).is_symlink()
+                    and not name.lower().endswith((".app", ".bundle", ".photoslibrary", ".pkg"))
+                ) if recursive else []
+                for name in sorted(names):
+                    item = Path(folder) / name
+                    if item.is_symlink() or not item.is_file():
+                        continue
+                    try:
+                        info = item.stat()
+                        relative = item.relative_to(root)
+                        record = (
+                            str(item), str(root), item.name,
+                            classificar_arquivo(item), item.suffix.lower(),
+                            info.st_size, info.st_mtime, suggest_project(relative),
+                        )
+                        batch.append(record)
+                        indexed += 1
+                        bytes_total += info.st_size
+                        if len(batch) >= 500:
+                            con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
+                            batch.clear()
+                    except OSError as error:
+                        warnings.append(f"{item}: {error}")
 
-    if batch:
-        con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
-    con.commit()
-    con.close()
+            if batch:
+                con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
     return {"total": indexed, "size": bytes_total, "warnings": warnings,
             "database": str(database_path)}
 
