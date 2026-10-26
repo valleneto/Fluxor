@@ -37,7 +37,7 @@ def suggest_project(relative_path):
     return parent.parts[0]
 
 
-def index_folder(root, database_path, recursive=True):
+def index_folder(root, database_path, recursive=True, cancel=None):
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise ValueError("A origem deve ser uma pasta existente.")
@@ -55,12 +55,16 @@ def index_folder(root, database_path, recursive=True):
         with con:
             con.execute("DELETE FROM files WHERE root=?", (str(root),))
             for folder, subdirs, names in os.walk(root, followlinks=False):
+                if cancel and cancel():
+                    raise InterruptedError("Indexação cancelada; transação revertida.")
                 subdirs[:] = sorted(
                     name for name in subdirs
                     if not (Path(folder) / name).is_symlink()
                     and not name.lower().endswith((".app", ".bundle", ".photoslibrary", ".pkg"))
                 ) if recursive else []
                 for name in sorted(names):
+                    if cancel and cancel():
+                        raise InterruptedError("Indexação cancelada; transação revertida.")
                     item = Path(folder) / name
                     if item.is_symlink() or not item.is_file():
                         continue
