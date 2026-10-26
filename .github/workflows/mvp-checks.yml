@@ -58,3 +58,6 @@ jobs:
 
       - name: OS013 Zen Core policy
         run: python -m tests.test_os013
+
+      - name: OS014 rollback and file integrity
+        run: python -m tests.test_os014
