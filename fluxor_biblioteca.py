@@ -409,7 +409,11 @@ class Biblioteca(QWidget):
         row = self.table.currentRow()
         item = self.table.item(row, 5) if row >= 0 else None
         if item:
-            review_add(self.review_db, item.text())
+            try:
+                review_add(self.review_db, item.text())
+            except (OSError, ValueError, __import__("sqlite3").DatabaseError) as error:
+                self.status.setText(f"Não foi possível salvar a revisão: {error}")
+                return
             self.review_paths.add(item.text())
             self.status.setText(f"Lista de revisão: {len(self.review_paths)} arquivos. Nenhuma alteração realizada.")
 
@@ -423,10 +427,18 @@ class Biblioteca(QWidget):
     def save_collection(self):
         from PySide6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "Coleção virtual", "Nome da coleção:")
-        if ok and name.strip():
+        if not ok or not name.strip():
+            return
+        try:
             collection_add(self.review_db, name, review_list(self.review_db))
-            self.report.setPlainText("Coleções virtuais (nenhum arquivo movido):\n" +
-                "\n".join(f"{title}: {count} itens" for title, count in collection_list(self.review_db)))
+            summaries = collection_list(self.review_db)
+        except (OSError, ValueError, __import__("sqlite3").DatabaseError) as error:
+            QMessageBox.warning(self, "Não foi possível salvar", str(error))
+            return
+        self.report.setPlainText(
+            "Coleções virtuais (nenhum arquivo movido):\n" +
+            "\n".join(f"{title}: {count} itens" for title, count in summaries)
+        )
 
     def show_versions(self):
         if not self.db.exists():
