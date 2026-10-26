@@ -133,6 +133,7 @@ class Inicio(QWidget):
         self.activity_poll.timeout.connect(self.poll_activity)
         self.activity_poll.start()
         self.was_active = False
+        self.last_active_kind = None
         self.refresh_nav()
 
     def navigate(self, target):
@@ -156,15 +157,26 @@ class Inicio(QWidget):
         self.sidebar_zen.setVisible(active)
         self.sidebar_activity.setVisible(active)
         if active:
-            status = "scanning" if self.library.thread is not None else "organizing"
-            self.sidebar_zen.set_state(status)
-            self.sidebar_activity.setText("Indexando..." if status == "scanning" else "Organizando...")
-            self.sidebar_zen.set_reduced_motion(self.reduce_motion.isChecked())
+            kind = "library" if self.library.thread is not None else "organizer"
+            self.last_active_kind = kind
+            state = "scanning" if kind == "library" else "organizing"
+            self.sidebar_zen.set_state(state)
+            self.sidebar_activity.setText("Analisando..." if kind == "library" else "Organizando...")
         if active != self.was_active:
             self.was_active = active
             if not active:
-                self.zen.set_state("complete")
-                self.zen_state.setText("PROCESSO CONCLUÍDO")
+                kind = self.last_active_kind
+                outcome = self.library.last_outcome if kind == "library" else self.organizer.last_outcome
+                if outcome == "success":
+                    self.zen.set_state("complete")
+                    self.zen_state.setText("OPERAÇÃO CONCLUÍDA")
+                else:
+                    self.zen.set_state("error")
+                    self.zen_state.setText({
+                        "cancelled": "OPERAÇÃO INTERROMPIDA",
+                        "partial": "CONCLUÍDO COM AVISOS",
+                        "error": "OPERAÇÃO COM ERRO",
+                    }.get(outcome, "ESTADO NÃO CONFIRMADO"))
                 QTimer.singleShot(2300, self.refresh_zen)
             else:
                 self.refresh_zen()
@@ -210,6 +222,7 @@ class Inicio(QWidget):
         target = self.future.pop()
         self.history.append(current)
         self.pages.setCurrentIndex(target)
+        self.refresh_zen()
         self.refresh_nav()
 
     def refresh_nav(self):
