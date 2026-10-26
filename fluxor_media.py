@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl, QProcess
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QImageReader
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QFileDialog
 )
@@ -100,7 +100,7 @@ class MediaPreview(QWidget):
         kind = media_kind(self.selected) if self.selected else "other"
         self.still_button.setEnabled(kind in ("image", "video"))
         self.motion_button.setEnabled(kind == "video")
-        self.stop_button.setEnabled(self.player is not None and self.timer.isActive())
+        self.stop_button.setEnabled(self.player is not None and (self.timer.isActive() or self.start_timeout.isActive()))
         if self.selected and cloud_risk(self.selected):
             self.still_button.setEnabled(False)
             self.motion_button.setEnabled(False)
@@ -115,7 +115,16 @@ class MediaPreview(QWidget):
         self.picture.setText("Não foi possível gerar um quadro. Use o aplicativo padrão.")
         self.stack.setCurrentWidget(self.picture)
         if media_kind(path) == "image":
-            pixmap = QPixmap(str(path))
+            reader = QImageReader(str(path))
+            reader.setAutoTransform(True)
+            dimensions = reader.size()
+            if dimensions.isValid():
+                if dimensions.width() * dimensions.height() > 100_000_000:
+                    self.note.setText("Imagem grande demais para uma prévia segura; use Quick Look.")
+                    return
+                if max(dimensions.width(), dimensions.height()) > 1024:
+                    reader.setScaledSize(dimensions.scaled(1024, 1024, Qt.AspectRatioMode.KeepAspectRatio))
+            pixmap = QPixmap.fromImage(reader.read())
         elif sys.platform == "darwin":
             self.cancel_thumbnail()
             self.thumbnail_folder = tempfile.TemporaryDirectory(prefix="fluxor-preview-")
