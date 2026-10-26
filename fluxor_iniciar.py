@@ -1,5 +1,7 @@
 """Fluxor Control — single-window navigation with preserved page state."""
 import sys
+from pathlib import Path
+from PySide6.QtGui import QIcon
 from PySide6.QtCore import QTimer
 
 from PySide6.QtWidgets import (
@@ -16,6 +18,10 @@ class Inicio(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FLUXOR — Find what matters")
+        asset_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+        logo_path = asset_root / "assets" / "fluxor_logo.png"
+        if logo_path.is_file():
+            self.setWindowIcon(QIcon(str(logo_path)))
         self.resize(1220, 760)
         self.setStyleSheet("""
             QWidget { background-color: #101720; color: #eef4fa; font-family: 'Helvetica Neue'; font-size: 13px; }
