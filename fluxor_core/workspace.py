@@ -1,5 +1,6 @@
 """Persistent, non-destructive review queue and user-defined virtual collections."""
 import sqlite3
+from contextlib import contextmanager, closing
 from pathlib import Path
 
 SCHEMA = """
@@ -17,13 +18,16 @@ CREATE TABLE IF NOT EXISTS collection_items(
 );
 """
 
+@contextmanager
 def _connect(database):
+    """Commit or rollback each action, and close the connection in all cases."""
     path = Path(database).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.executescript(SCHEMA)
-    return conn
+    with closing(sqlite3.connect(path, timeout=10)) as conn:
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.executescript(SCHEMA)
+        with conn:
+            yield conn
 
 def review_add(database, path):
     with _connect(database) as conn:
