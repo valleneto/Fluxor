@@ -16,6 +16,9 @@ python3 -m pip show pyinstaller >/dev/null || {
   exit 1
 }
 python3 -m PyInstaller --noconfirm --clean --windowed --name "Fluxor Control" \
+  --hidden-import PySide6.QtMultimedia \
+  --hidden-import PySide6.QtMultimediaWidgets \
   --collect-submodules fluxor_core \
   fluxor_iniciar.py
-echo "Build criado em dist/Fluxor Control.app (ainda nao assinado)."
+echo "Build local gerado em dist/Fluxor Control.app"
+echo "Ainda não assinado com Developer ID nem notarizado. Não distribuir publicamente."
