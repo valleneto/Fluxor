@@ -107,6 +107,7 @@ class MediaPreview(QWidget):
         self.cancel_thumbnail()
         self.generation += 1
         self.selected = str(path) if path else None
+        self.metadata.setText(self.selected if self.selected else "Nenhum arquivo selecionado.")
         self.picture.clear()
         self.picture.setText("Selecione Mostrar quadro para carregar a prévia.")
         self.stack.setCurrentWidget(self.picture)
