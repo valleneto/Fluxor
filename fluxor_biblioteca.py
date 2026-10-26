@@ -78,6 +78,7 @@ class Biblioteca(QWidget):
         self.db = Path.home() / ".fluxor" / "library.db"
         self.thread = None
         self.worker = None
+        self.last_outcome = 'idle'
         self.offset = 0
         self.page_size = 100
         self.review_db = Path.home() / '.fluxor' / 'workspace.db'
@@ -199,6 +200,7 @@ class Biblioteca(QWidget):
         self.analysis_button.setEnabled(False)
         self.duplicates_button.setEnabled(False)
         self.versions_button.setEnabled(False)
+        self.last_outcome = "running"
         self.status.setText("Indexando metadados em segundo plano...")
         self.thread = QThread(self)
         self.worker = IndexWorker(folder, str(self.db))
@@ -213,11 +215,13 @@ class Biblioteca(QWidget):
         self.thread.start()
 
     def indexed(self, folder, result):
+        self.last_outcome = "partial" if result["warnings"] else "success"
         self.folder_label.setText(f"Última pasta indexada: {folder}")
         self.status.setText(f"Indexados nesta pasta: {result['total']} arquivos; {result['size']} bytes")
         self.refresh()
 
     def failed(self, message):
+        self.last_outcome = "error"
         QMessageBox.warning(self, "Não foi possível indexar", message)
         self.status.setText("Falha na indexação.")
 
@@ -382,6 +386,7 @@ class Biblioteca(QWidget):
     def duplicates(self):
         if not self.db.exists() or self.thread is not None:
             return
+        self.last_outcome = "running"
         self.status.setText("Comparando candidatos por tamanho e SHA-256...")
         self.index_button.setEnabled(False)
         self.analysis_button.setEnabled(False)
@@ -400,6 +405,7 @@ class Biblioteca(QWidget):
         self.thread.start()
 
     def show_duplicates(self, data):
+        self.last_outcome = "cancelled" if data["cancelled"] else "partial" if data["errors"] else "success"
         self.report.setPlainText(
             f"Duplicados verificados: {len(data['groups'])} grupos; "
             f"volume redundante estimado: {data['potential_redundant_bytes']} bytes. "
