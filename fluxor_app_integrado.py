@@ -33,13 +33,15 @@ class Tarefa(QObject):
     def executar(self):
         try:
             if self.tipo == "preview":
-                dados = planejar(self.origem, self.destino, self.modo, self.recursivo)
+                dados = planejar(self.origem, self.destino, self.modo, self.recursivo, cancelar=lambda: self.cancelado)
             else:
                 dados = executar_plano(
                     self.plano, progresso=self.progresso.emit,
                     cancelar=lambda: self.cancelado,
                 )
             self.pronto.emit(dados)
+        except InterruptedError:
+            self.falha.emit('Operação cancelada pelo usuário.')
         except Exception as erro:
             self.falha.emit(str(erro))
         finally:
@@ -141,7 +143,7 @@ class FluxorIntegrado(QWidget):
         for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo):
             b.setEnabled(not ativo)
         self.b_organizar.setEnabled(not ativo and self.plano is not None)
-        self.b_cancelar.setEnabled(ativo and self.tarefa == "organizar")
+        self.b_cancelar.setEnabled(ativo)
         self.b_abrir.setEnabled(not ativo and bool(self.saida) and Path(self.saida).is_dir())
 
     def iniciar(self, tipo):
@@ -210,16 +212,16 @@ class FluxorIntegrado(QWidget):
                 self.barra.setValue(100)
 
     def falha(self, mensagem):
-        self.last_outcome = "error"
+        self.last_outcome = "cancelled" if mensagem.startswith("Operação cancelada") else "error"
         self.plano = None
         self.status.setText("Falha na operação.")
         self.logs.append(f"ERRO: {mensagem}")
 
     def cancelar(self):
-        if self.worker and self.tarefa == "organizar":
+        if self.worker:
             self.worker.cancelar()
             self.b_cancelar.setEnabled(False)
-            self.status.setText("Aguardando finalizar o arquivo atual...")
+            self.status.setText("Cancelamento solicitado; aguardando ponto seguro...")
 
     def liberar(self):
         self.thread = None
