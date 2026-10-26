@@ -30,17 +30,24 @@ class SortableItem(QTableWidgetItem):
 class IndexWorker(QObject):
     finished = Signal(dict)
     error = Signal(str)
+    cancelled = Signal(str)
     done = Signal()
 
     def __init__(self, folder, db):
         super().__init__()
         self.folder = folder
         self.db = db
+        self.cancel_requested = False
+
+    def cancel(self):
+        self.cancel_requested = True
 
     @Slot()
     def run(self):
         try:
-            self.finished.emit(index_folder(self.folder, self.db))
+            self.finished.emit(index_folder(self.folder, self.db, cancel=lambda: self.cancel_requested))
+        except InterruptedError as error:
+            self.cancelled.emit(str(error))
         except Exception as error:
             self.error.emit(str(error))
         finally:
@@ -200,6 +207,7 @@ class Biblioteca(QWidget):
         self.analysis_button.setEnabled(False)
         self.duplicates_button.setEnabled(False)
         self.versions_button.setEnabled(False)
+        self.cancel_button.setEnabled(True)
         self.last_outcome = "running"
         self.status.setText("Indexando metadados em segundo plano...")
         self.thread = QThread(self)
@@ -208,6 +216,7 @@ class Biblioteca(QWidget):
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(lambda result: self.indexed(folder, result))
         self.worker.error.connect(self.failed)
+        self.worker.cancelled.connect(self.index_cancelled)
         self.worker.done.connect(self.thread.quit)
         self.worker.done.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
@@ -219,6 +228,10 @@ class Biblioteca(QWidget):
         self.folder_label.setText(f"Última pasta indexada: {folder}")
         self.status.setText(f"Indexados nesta pasta: {result['total']} arquivos; {result['size']} bytes")
         self.refresh()
+
+    def index_cancelled(self, message):
+        self.last_outcome = "cancelled"
+        self.status.setText(message)
 
     def failed(self, message):
         self.last_outcome = "error"
@@ -312,7 +325,7 @@ class Biblioteca(QWidget):
                 break
 
     def cancel_scan(self):
-        if isinstance(self.worker, DuplicateWorker):
+        if isinstance(self.worker, (DuplicateWorker, IndexWorker)):
             self.worker.cancel()
             self.cancel_button.setEnabled(False)
             self.status.setText("Interrupção solicitada...")
