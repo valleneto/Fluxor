@@ -52,12 +52,18 @@ class MediaPreview(QWidget):
         self.still_button.clicked.connect(self.show_still)
         self.motion_button.clicked.connect(self.play_motion)
         self.stop_button.clicked.connect(self.stop_motion)
-        for button in (self.pick_button, self.still_button, self.motion_button, self.stop_button):
+        for button in (self.still_button, self.motion_button, self.stop_button):
             controls.addWidget(button)
         layout.addLayout(controls)
+        layout.addWidget(self.pick_button)
         self.note = QLabel("Selecione na Biblioteca, arraste mídia para cá ou clique Escolher arquivo.")
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
+        self.metadata = QLabel("Nenhum arquivo selecionado.")
+        self.metadata.setWordWrap(True)
+        self.metadata.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.metadata.setStyleSheet("color: #b5ccdc; font-size: 12px; padding-top: 4px;")
+        layout.addWidget(self.metadata)
         self.update_controls()
 
     def pick_file(self):
@@ -85,6 +91,17 @@ class MediaPreview(QWidget):
         else:
             event.ignore()
 
+    def set_metadata(self, values):
+        """Display catalog metadata without opening or decoding the file."""
+        if not values:
+            self.metadata.setText("Nenhum arquivo selecionado.")
+            return
+        name, category, project, size, modified, path = values
+        self.metadata.setText(
+            f"{name}\n{category} · {project} · {size} bytes\n"
+            f"Modificado em {modified}\n{path}"
+        )
+
     def select_file(self, path):
         self.stop_motion()
         self.cancel_thumbnail()
@@ -95,6 +112,8 @@ class MediaPreview(QWidget):
         self.stack.setCurrentWidget(self.picture)
         self.note.setText("Arquivo selecionado: " + Path(self.selected).name if self.selected else "Selecione ou arraste uma imagem/vídeo.")
         self.update_controls()
+        if self.selected and media_kind(self.selected) == "image" and preview_allowed(self.selected):
+            QTimer.singleShot(0, self.show_still)
 
     def update_controls(self):
         kind = media_kind(self.selected) if self.selected else "other"
