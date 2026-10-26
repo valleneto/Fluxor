@@ -10,7 +10,10 @@ if [[ ! -d ".venv" ]]; then
   exit 1
 fi
 source .venv/bin/activate
-python3 -c 'import PySide6; print("PySide6 OK")'
+python3 -c 'import PySide6; from PySide6.QtMultimedia import QMediaPlayer; from PySide6.QtMultimediaWidgets import QVideoWidget; print("PySide6 + Qt Multimedia OK")' || {
+  echo "Qt Multimedia incompleto: verifique a instalação do PySide6 no ambiente virtual." >&2
+  exit 1
+}
 python3 -m pip show pyinstaller >/dev/null || {
   echo "Instale PyInstaller no ambiente virtual: python3 -m pip install pyinstaller" >&2
   exit 1
