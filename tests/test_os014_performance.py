@@ -15,13 +15,13 @@ def main():
             conn.executescript(SCHEMA)
             conn.executemany(
                 "INSERT INTO files VALUES (?,?,?,?,?,?,?,?)",
-                (
+                [(
                     f"/synthetic/p{index % 20}/asset_{index:05d}.mp4",
                     "/synthetic", f"asset_{index:05d}.mp4", "Vídeos", ".mp4",
                     (index % 1000 + 1) * 10000, 1690000000.0 + index,
                     f"p{index % 20}",
                 )
-                for index in range(50000)
+                for index in range(50000)]
             )
         start = perf_counter()
         times = []
