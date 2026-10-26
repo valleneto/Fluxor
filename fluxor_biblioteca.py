@@ -400,6 +400,12 @@ class Biblioteca(QWidget):
     def duplicates(self):
         if not self.db.exists() or self.thread is not None:
             return
+        answer = QMessageBox.question(self, "Comparar conteúdo",
+            "A comparação pode ler arquivos de provedores em nuvem. Continue apenas se a pasta for local.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
         self.last_outcome = "running"
         self.status.setText("Comparando candidatos por tamanho e SHA-256...")
         self.index_button.setEnabled(False)
@@ -428,7 +434,7 @@ class Biblioteca(QWidget):
         if data["cancelled"]:
             self.status.setText("Análise interrompida. Resultados parciais descartados.")
             return
-        self.status.setText("Comparação concluída. Revise os arquivos antes de decidir.")
+        self.status.setText("Comparação concluída com avisos." if data["errors"] else "Comparação concluída. Revise os arquivos antes de decidir.")
         if not data["groups"]:
             return
         dialog = QDialog(self)
