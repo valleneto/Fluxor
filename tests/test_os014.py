@@ -5,6 +5,7 @@ import sqlite3
 
 import fluxor_core.library as library
 from fluxor_core.duplicates import find_exact_duplicates
+from fluxor_core.plan import planejar, executar_plano
 from fluxor_core.workspace import _connect, review_list, review_add
 
 
@@ -105,12 +106,36 @@ def test_changed_since_index():
         assert any(item["path"] == str(changed) and "alterado" in item["error"] for item in report["errors"])
 
 
+def test_copy_snapshot():
+    import os
+    with TemporaryDirectory() as tmp:
+        origin = Path(tmp) / "origin"
+        destination = Path(tmp) / "destination"
+        origin.mkdir()
+        destination.mkdir()
+        file = origin / "sample.mp4"
+        file.write_bytes(b"12345")
+        try:
+            planejar(origin, destination, cancelar=lambda: True)
+        except InterruptedError:
+            pass
+        else:
+            raise AssertionError("cancellation did not stop scan")
+        snapshot = planejar(origin, destination)
+        old = file.stat()
+        os.utime(file, ns=(old.st_atime_ns, old.st_mtime_ns + 100_000_000))
+        report = executar_plano(snapshot)
+        assert report["total_copiados"] == 0
+        assert report["total_erros"] == 1
+        assert file.read_bytes() == b"12345"
+
 def main():
     test_index_rollback()
     test_index_cancel_rollback()
     test_workspace_rollback()
     test_cloud_skip_and_local_equality()
     test_changed_since_index()
+    test_copy_snapshot()
     print("OS014 atomic index, workspace rollback and cloud policy tests passed")
 
 
