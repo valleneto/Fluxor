@@ -115,6 +115,9 @@ class Biblioteca(QWidget):
         self.search_timer.setInterval(180)
         self.search_timer.timeout.connect(self.refresh)
         self.search.textChanged.connect(self.delayed_refresh)
+        self.project_filter = QComboBox()
+        self.project_filter.addItem("Todos os projetos")
+        self.project_filter.currentTextChanged.connect(self.refresh)
         self.category = QComboBox()
         self.category.addItem("Todas as categorias")
         self.category.currentTextChanged.connect(self.refresh)
@@ -143,6 +146,7 @@ class Biblioteca(QWidget):
         self.duplicates_button.clicked.connect(self.duplicates)
         tools.addWidget(self.ext_filter)
         tools.addWidget(self.size_filter)
+        tools.addWidget(self.project_filter)
         tools.addWidget(self.analysis_button)
         tools.addWidget(self.versions_button)
         tools.addWidget(self.review_button)
@@ -270,7 +274,7 @@ class Biblioteca(QWidget):
         self.refresh()
 
     def refresh(self, *args):
-        if self.sender() in (self.search, self.category, self.ext_filter, self.size_filter):
+        if self.sender() in (self.search, self.category, self.ext_filter, self.size_filter, self.project_filter):
             self.offset = 0
         if not self.db.exists():
             return
@@ -284,17 +288,27 @@ class Biblioteca(QWidget):
             match = self.category.findText(current)
             self.category.setCurrentIndex(match if match >= 0 else 0)
             self.category.blockSignals(False)
+            previous_project = self.project_filter.currentText()
+            self.project_filter.blockSignals(True)
+            self.project_filter.clear()
+            self.project_filter.addItem("Todos os projetos")
+            self.project_filter.addItems([name for name, count in summary["projects"]])
+            self.project_filter.setCurrentIndex(max(0, self.project_filter.findText(previous_project)))
+            self.project_filter.blockSignals(False)
             selected = self.category.currentText()
             rows = search_files(
                 self.db, text=self.search.text(),
                 category=None if selected == "Todas as categorias" else selected,
                 extension=self.ext_filter.text().strip() or None,
                 min_size=({1:10,2:100,3:1024}.get(self.size_filter.currentIndex()) or 0)*1024*1024 or None,
-                limit=self.page_size, offset=self.offset,
+                project=self.project_filter.currentText() if self.project_filter.currentIndex() > 0 else None,
+                limit=self.page_size + 1, offset=self.offset,
             )
         except Exception as error:
             self.status.setText(f"Falha ao consultar índice: {error}")
             return
+        has_more = len(rows) > self.page_size
+        rows = rows[:self.page_size]
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(rows))
         for i, row in enumerate(rows):
@@ -313,7 +327,7 @@ class Biblioteca(QWidget):
             item.setIcon(self.style().standardIcon(standard))
             self.gallery.addItem(item)
         self.prev_button.setEnabled(self.offset > 0)
-        self.next_button.setEnabled(len(rows) == self.page_size)
+        self.next_button.setEnabled(has_more)
 
     def inspect(self):
         row = self.table.currentRow()
