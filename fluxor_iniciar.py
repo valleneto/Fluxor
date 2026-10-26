@@ -22,7 +22,15 @@ class Inicio(QWidget):
         logo_path = asset_root / "assets" / "fluxor_logo.png"
         if logo_path.is_file():
             self.setWindowIcon(QIcon(str(logo_path)))
-        self.resize(1220, 760)
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            self.resize(
+                min(1100, max(640, available.width() - 48)),
+                min(700, max(480, available.height() - 64)),
+            )
+        else:
+            self.resize(1000, 650)
         self.setStyleSheet("""
             QWidget { background-color: #101720; color: #eef4fa; font-family: 'Helvetica Neue'; font-size: 13px; }
             QLabel { background: transparent; }
