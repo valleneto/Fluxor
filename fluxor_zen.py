@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QWidget
 
 
 def phase_for_state(state):
-    return {"idle": 0.22, "scanning": 0.85, "organizing": 1.15, "complete": 0.0}.get(state, 0.22)
+    return {"idle": 0.22, "scanning": 0.85, "organizing": 1.15, "complete": 0.0, "error": 0.0}.get(state, 0.22)
 
 
 class ZenCore(QWidget):
@@ -23,7 +23,7 @@ class ZenCore(QWidget):
         self.timer.start()
 
     def set_state(self, state):
-        if state not in ("idle", "scanning", "organizing", "complete"):
+        if state not in ("idle", "scanning", "organizing", "complete", "error"):
             raise ValueError("Unknown Zen Core state")
         self.state = state
         self.update()
@@ -71,6 +71,6 @@ class ZenCore(QWidget):
         x = cx + radius * math.cos(angle)
         y = cy + radius * math.sin(angle)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#90dce1"))
+        p.setBrush(QColor("#e5b57b") if self.state == "error" else QColor("#90dce1"))
         p.drawEllipse(QRectF(x-3.5, y-3.5, 7, 7))
         p.end()
