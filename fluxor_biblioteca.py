@@ -97,6 +97,8 @@ class Biblioteca(QWidget):
         self.last_outcome = 'idle'
         self.offset = 0
         self.page_size = 100
+        self.sort_field = "modified"
+        self.sort_descending = True
         self.review_db = Path.home() / '.fluxor' / 'workspace.db'
         self.review_paths = set(review_list(self.review_db))
         root = QVBoxLayout(self)
@@ -171,12 +173,18 @@ class Biblioteca(QWidget):
         root.addWidget(self.status)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["Nome", "Categoria", "Projeto sugerido", "Tamanho", "Modificado", "Caminho original"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSortIndicatorShown(True)
+        header.setSortIndicator(4, Qt.SortOrder.DescendingOrder)
+        header.sectionClicked.connect(self.sort_by_column)
+        self.table.setColumnHidden(5, True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
-        self.table.setSortingEnabled(True)
+        self.table.setSortingEnabled(False)
         self.table.itemSelectionChanged.connect(self.inspect)
         self.table.cellClicked.connect(lambda row, column: self.inspect())
         self.visual_modes = QStackedWidget()
@@ -265,6 +273,19 @@ class Biblioteca(QWidget):
         self.versions_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
 
+    def sort_by_column(self, column):
+        choices = {0: "name", 1: "category", 2: "project", 3: "size", 4: "modified"}
+        key = choices.get(column)
+        if key is None:
+            return
+        self.sort_descending = not self.sort_descending if key == self.sort_field else key in ("size", "modified")
+        self.sort_field = key
+        self.offset = 0
+        self.table.horizontalHeader().setSortIndicator(
+            column, Qt.SortOrder.DescendingOrder if self.sort_descending else Qt.SortOrder.AscendingOrder
+        )
+        self.refresh()
+
     def delayed_refresh(self, *args):
         self.offset = 0
         self.search_timer.start()
@@ -302,6 +323,7 @@ class Biblioteca(QWidget):
                 extension=self.ext_filter.text().strip() or None,
                 min_size=({1:10,2:100,3:1024}.get(self.size_filter.currentIndex()) or 0)*1024*1024 or None,
                 project=self.project_filter.currentText() if self.project_filter.currentIndex() > 0 else None,
+                sort=self.sort_field, descending=self.sort_descending,
                 limit=self.page_size + 1, offset=self.offset,
             )
         except Exception as error:
