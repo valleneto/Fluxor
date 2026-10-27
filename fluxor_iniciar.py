@@ -1,7 +1,7 @@
 """Fluxor Control — single-window navigation with preserved page state."""
 import sys
 from pathlib import Path
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon
 from PySide6.QtCore import QTimer
 
 from PySide6.QtWidgets import (
@@ -47,14 +47,8 @@ class Inicio(QWidget):
         side.setContentsMargins(12, 18, 12, 14)
         side.setSpacing(9)
         brand = QHBoxLayout()
-        logo_mark = QLabel()
-        if logo_path.is_file():
-            logo_mark.setPixmap(QPixmap(str(logo_path)).scaled(
-                30, 30, __import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AspectRatioMode.KeepAspectRatio,
-                __import__("PySide6.QtCore", fromlist=["Qt"]).Qt.TransformationMode.SmoothTransformation,
-            ))
-        else:
-            logo_mark.setText("◈")
+        logo_mark = QLabel("F/")
+        logo_mark.setObjectName("tagMark")
         brand.addWidget(logo_mark)
         wordmark = QLabel("FLUXOR")
         wordmark.setObjectName("brandName")
