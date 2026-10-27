@@ -15,10 +15,12 @@ def main():
     with TemporaryDirectory() as temp:
         os.environ["HOME"] = temp
         app = QApplication.instance() or QApplication([])
+        print("OS020 GUI phase: constructing", flush=True)
         w = FluxorIntegrado()
         w.show()
         app.processEvents()
 
+        print("OS020 GUI phase: visible", flush=True)
         options = [w.modo.itemText(i) for i in range(w.modo.count())]
         assert "Por tipo e ano" in options
         assert "Por tipo, ano e mês" in options
@@ -46,6 +48,7 @@ def main():
             def setFilter(self, flags):
                 self.flags = flags
 
+        print("OS020 GUI phase: picker mock", flush=True)
         with patch("fluxor_app_integrado.QFileDialog", FakePicker):
             picker = w.criar_seletor_pasta("Synthetic test")
         assert picker.parent is w
@@ -55,6 +58,7 @@ def main():
         assert picker.options[QFileDialog.Option.ShowDirsOnly]
         assert bool(picker.flags & QDir.Filter.NoSymLinks)
 
+        print("OS020 GUI phase: picker configured", flush=True)
         origin = Path(temp) / "synthetic-folder"
         origin.mkdir()
         w.origem_caminho.setText(str(origin))
@@ -65,14 +69,16 @@ def main():
         w.aplicar_origem_digitada()
         assert w.origem == str(origin)
 
+        print("OS020 GUI phase: manual origin accepted", flush=True)
         w.destino_tipo.setCurrentIndex(1)
         app.processEvents()
         assert w.plano is None
         assert not w.b_organizar.isEnabled()
 
+        print("OS020 GUI phase: closing window", flush=True)
         w.close()
         app.processEvents()
-    print("OS020 Qt composite modes, non-native no-symlink picker and manual origin path passed")
+    print("OS020 Qt composite modes, non-native no-symlink picker and manual origin path passed", flush=True)
 
 
 if __name__ == "__main__":
