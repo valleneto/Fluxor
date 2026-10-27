@@ -20,7 +20,7 @@ class Tarefa(QObject):
     falha = Signal(str)
     finalizado = Signal()
 
-    def __init__(self, tipo, origem, destino, modo, recursivo, plano=None):
+    def __init__(self, tipo, origem, destino, modo, recursivo, plano=None, acrescentar=False):
         super().__init__()
         self.tipo = tipo
         self.origem = origem
@@ -28,13 +28,14 @@ class Tarefa(QObject):
         self.modo = modo
         self.recursivo = recursivo
         self.plano = plano
+        self.acrescentar = bool(acrescentar)
         self.cancelado = False
 
     @Slot()
     def executar(self):
         try:
             if self.tipo == "preview":
-                dados = planejar(self.origem, self.destino, self.modo, self.recursivo, cancelar=lambda: self.cancelado)
+                dados = planejar(self.origem, self.destino, self.modo, self.recursivo, cancelar=lambda: self.cancelado, acrescentar=self.acrescentar)
             else:
                 dados = executar_plano(
                     self.plano, progresso=self.progresso.emit,
@@ -101,6 +102,17 @@ class FluxorIntegrado(QWidget):
         acervo_title = QLabel("01  ACERVO")
         acervo_title.setObjectName("sectionEyebrow")
         acervo_layout.addWidget(acervo_title)
+        self.destino_tipo = QComboBox()
+        self.destino_tipo.addItems([
+            "Criar ou usar Fluxor_Organizado no destino",
+            "Acrescentar a uma organização existente",
+        ])
+        self.destino_tipo.setToolTip(
+            "Acrescentar: selecione a própria pasta Fluxor_Organizado, "
+            "sem gerar uma nova pasta dentro dela."
+        )
+        self.destino_tipo.currentIndexChanged.connect(self.trocar_tipo_destino)
+        acervo_layout.addWidget(self.destino_tipo)
         self.origem_label = QLabel("Origem: selecione uma pasta")
         self.destino_label = QLabel("Destino: selecione uma pasta diferente")
         for path_label in (self.origem_label, self.destino_label):
@@ -116,6 +128,14 @@ class FluxorIntegrado(QWidget):
         acervo_layout.addWidget(self.origem_label)
         acervo_layout.addWidget(self.destino_label)
         acervo_layout.addLayout(pasta_botoes)
+        self.merge_hint = QLabel(
+            "Para acrescentar, escolha Fluxor_Organizado e mantenha o mesmo "
+            "critério de organização da primeira execução."
+        )
+        self.merge_hint.setObjectName("muted")
+        self.merge_hint.setWordWrap(True)
+        self.merge_hint.setVisible(False)
+        acervo_layout.addWidget(self.merge_hint)
         stages_layout.addWidget(acervo)
 
         process = QFrame()
@@ -184,6 +204,21 @@ class FluxorIntegrado(QWidget):
         root.addWidget(report, 1)
         self.atualizar_botoes()
 
+    def trocar_tipo_destino(self, *args):
+        """Destination switches are explicit: never reinterpret an old path."""
+        self.destino = ""
+        self.destino_label.setText(
+            "Organização existente: escolha a pasta Fluxor_Organizado"
+            if self.destino_tipo.currentIndex() == 1
+            else "Destino: selecione uma pasta diferente"
+        )
+        self.b_destino.setText(
+            "Escolher Fluxor_Organizado" if self.destino_tipo.currentIndex() == 1
+            else "Escolher destino"
+        )
+        self.merge_hint.setVisible(self.destino_tipo.currentIndex() == 1)
+        self.invalidar_previa()
+
     def invalidar_previa(self, *args):
         self.plano = None
         self.barra.setValue(0)
@@ -198,15 +233,35 @@ class FluxorIntegrado(QWidget):
             self.invalidar_previa()
 
     def escolher_destino(self):
-        pasta = QFileDialog.getExistingDirectory(self, "Escolher destino")
+        merge = self.destino_tipo.currentIndex() == 1
+        pasta = QFileDialog.getExistingDirectory(
+            self, "Selecionar Fluxor_Organizado existente" if merge
+            else "Escolher pasta de destino"
+        )
         if pasta:
+            if not merge and Path(pasta).name == "Fluxor_Organizado":
+                QMessageBox.warning(
+                    self, "Pasta já organizada",
+                    "Escolha a opção 'Acrescentar a uma organização existente' "
+                    "para usar esta pasta sem criar outra dentro dela."
+                )
+                return
+            if merge:
+                from fluxor_core.merge import require_safe_target
+                try:
+                    require_safe_target(pasta)
+                except ValueError as error:
+                    QMessageBox.warning(self, "Organização existente", str(error))
+                    return
             self.destino = pasta
-            self.destino_label.setText(f"Destino: {pasta}")
+            self.destino_label.setText(
+                ("Organização existente: " if merge else "Destino: ") + pasta
+            )
             self.invalidar_previa()
 
     def atualizar_botoes(self):
         ativo = self.thread is not None
-        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo):
+        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo, self.destino_tipo):
             b.setEnabled(not ativo)
         self.b_organizar.setEnabled(not ativo and self.plano is not None)
         self.b_cancelar.setEnabled(ativo)
@@ -232,6 +287,7 @@ class FluxorIntegrado(QWidget):
         self.worker = Tarefa(
             tipo, self.origem, self.destino,
             self.modo.currentText(), self.recursivo.isChecked(), self.plano,
+            acrescentar=self.destino_tipo.currentIndex() == 1,
         )
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.executar)
@@ -263,8 +319,26 @@ class FluxorIntegrado(QWidget):
             self.logs.append(f"Tamanho estimado: {resultado['tamanho_total']} bytes")
             self.logs.append(f"Modo: {resultado['modo']}")
             self.logs.append(f"Destino: {resultado['destino_base']}\n")
+            if resultado.get("acrescentar"):
+                resumo = resultado["resumo_acrescimo"]
+                self.logs.append(
+                    f"ACRESCENTAR: {resumo['novos']} novos, "
+                    f"{resumo['ignorados_identicos']} idênticos ignorados, "
+                    f"{resumo['nomes_alternativos']} nomes alternativos."
+                )
+                self.logs.append(
+                    "O acervo anterior permanece intacto. "
+                    "Confira o critério de organização e cada destino previsto."
+                )
             for item in resultado["arquivos"][:150]:
-                self.logs.append(f"{item['origem']} → {item['destino_relativo']}")
+                if resultado.get("acrescentar"):
+                    acao = ("IGNORAR IDÊNTICO" if item.get("acao") == "ignorar_identico"
+                            else "RENOMEAR" if item.get("renomear") else "NOVO")
+                    self.logs.append(
+                        f"[{acao}] {item['origem']} → {item['destino_previsto']}"
+                    )
+                else:
+                    self.logs.append(f"{item['origem']} → {item['destino_relativo']}")
             if resultado["total_arquivos"] > 150:
                 self.logs.append(f"... e mais {resultado['total_arquivos'] - 150} arquivos")
             for aviso in resultado["avisos"]:
@@ -276,13 +350,21 @@ class FluxorIntegrado(QWidget):
             self.plano = None
             self.saida = resultado["destino_base"]
             self.logs.append(f"Copiados: {resultado['total_copiados']}")
+            if resultado.get("acrescentar"):
+                self.logs.append(f"Idênticos ignorados: {resultado.get('total_ignorados', 0)}")
+                self.logs.append(f"Nomes alternativos: {resultado.get('total_renomeados', 0)}")
+                self.logs.append("Para acrescentar outra pasta, escolha uma nova origem; o destino será mantido.")
             self.logs.append(f"Erros: {resultado['total_erros']}")
             self.logs.append(f"Cancelado: {resultado['cancelado']}")
             self.logs.append(f"Destino: {self.saida}")
             for erro in resultado["erros"][:100]:
                 self.logs.append(f"ERRO: {erro['origem']} — {erro['erro']}")
-            self.status.setText("Cancelado." if resultado["cancelado"] else
-                                "Concluído com erros." if resultado["total_erros"] else "Concluído.")
+            self.status.setText(
+                "Cancelado." if resultado["cancelado"] else
+                "Concluído com erros." if resultado["total_erros"] else
+                "Acréscimo concluído. Escolha outra origem para continuar."
+                if resultado.get("acrescentar") else "Concluído."
+            )
             self.eta.setText("Operação finalizada; confira o relatório.")
             if resultado["total_encontrados"] == 0:
                 self.barra.setValue(100)
