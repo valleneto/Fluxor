@@ -4,11 +4,11 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QDir
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QCheckBox, QFileDialog, QTextEdit,
-    QProgressBar, QMessageBox, QFrame, QScrollArea,
+    QProgressBar, QMessageBox, QFrame, QScrollArea, QLineEdit, QDialog,
 )
 
 from fluxor_core.plan import MODOS, planejar, executar_plano
@@ -16,6 +16,7 @@ from fluxor_core.plan import MODOS, planejar, executar_plano
 
 class Tarefa(QObject):
     progresso = Signal(int, int)
+    varredura = Signal(int, str)
     pronto = Signal(dict)
     falha = Signal(str)
     finalizado = Signal()
@@ -35,7 +36,11 @@ class Tarefa(QObject):
     def executar(self):
         try:
             if self.tipo == "preview":
-                dados = planejar(self.origem, self.destino, self.modo, self.recursivo, cancelar=lambda: self.cancelado, acrescentar=self.acrescentar)
+                dados = planejar(
+                    self.origem, self.destino, self.modo, self.recursivo,
+                    cancelar=lambda: self.cancelado, acrescentar=self.acrescentar,
+                    informar=self.varredura.emit,
+                )
             else:
                 dados = executar_plano(
                     self.plano, progresso=self.progresso.emit,
@@ -126,6 +131,21 @@ class FluxorIntegrado(QWidget):
         pasta_botoes.addWidget(self.b_origem)
         pasta_botoes.addWidget(self.b_destino)
         acervo_layout.addWidget(self.origem_label)
+        self.origem_caminho = QLineEdit()
+        self.origem_caminho.setObjectName("origemCaminho")
+        self.origem_caminho.setPlaceholderText(
+            "Ou informe um caminho: ~/Downloads ou /Volumes/Compartilhamento/Pasta"
+        )
+        self.origem_caminho.setToolTip(
+            "Use um caminho já acessível pelo Mac. URLs sftp:// e smb:// "
+            "não são pastas montadas."
+        )
+        self.b_usar_caminho = QPushButton("Usar caminho")
+        self.b_usar_caminho.clicked.connect(self.aplicar_origem_digitada)
+        path_row = QHBoxLayout()
+        path_row.addWidget(self.origem_caminho, 1)
+        path_row.addWidget(self.b_usar_caminho)
+        acervo_layout.addLayout(path_row)
         acervo_layout.addWidget(self.destino_label)
         acervo_layout.addLayout(pasta_botoes)
         self.merge_hint = QLabel(
@@ -225,17 +245,64 @@ class FluxorIntegrado(QWidget):
         self.eta.setText("Tempo restante: —")
         self.atualizar_botoes()
 
+    def criar_seletor_pasta(self, titulo):
+        """Construct an inspectable, non-native folder picker."""
+        dialog = QFileDialog(self, titulo, str(Path.home()))
+        dialog.setFileMode(QFileDialog.FileMode.Directory)
+        dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dialog.setOption(QFileDialog.Option.DontResolveSymlinks, True)
+        dialog.setFilter(
+            QDir.Filter.AllDirs | QDir.Filter.NoDotAndDotDot |
+            QDir.Filter.NoSymLinks
+        )
+        return dialog
+
+    def selecionar_pasta_segura(self, titulo):
+        """Avoid native Finder alias loops; the path field bypasses browsing."""
+        dialog = self.criar_seletor_pasta(titulo)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return ""
+        paths = dialog.selectedFiles()
+        return paths[0] if paths else ""
+
+    def aplicar_origem_digitada(self):
+        """Accept a path without blocking the UI on network stat/resolution."""
+        raw = self.origem_caminho.text().strip()
+        if not raw:
+            QMessageBox.information(self, "Origem", "Digite o caminho da pasta.")
+            return
+        if raw.lower().startswith(("sftp://", "smb://", "afp://", "ssh://")):
+            QMessageBox.warning(
+                self, "Endereço de rede",
+                "Esse endereço é uma URL de rede, não uma pasta montada. "
+                "Use o caminho /Volumes/NOME se o volume estiver montado "
+                "no macOS. A navegação SFTP direta será outra integração."
+            )
+            return
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            QMessageBox.warning(
+                self, "Origem", "Informe um caminho absoluto, como "
+                "~/Downloads ou /Volumes/Compartilhamento/Pasta."
+            )
+            return
+        self.origem = str(path)
+        self.origem_label.setText(f"Origem: {self.origem}")
+        self.invalidar_previa()
+
     def escolher_origem(self):
-        pasta = QFileDialog.getExistingDirectory(self, "Escolher origem")
+        pasta = self.selecionar_pasta_segura("Escolher pasta de origem")
         if pasta:
             self.origem = pasta
+            self.origem_caminho.setText(pasta)
             self.origem_label.setText(f"Origem: {pasta}")
             self.invalidar_previa()
 
     def escolher_destino(self):
         merge = self.destino_tipo.currentIndex() == 1
-        pasta = QFileDialog.getExistingDirectory(
-            self, "Selecionar Fluxor_Organizado existente" if merge
+        pasta = self.selecionar_pasta_segura(
+            "Selecionar Fluxor_Organizado existente" if merge
             else "Escolher pasta de destino"
         )
         if pasta:
@@ -261,7 +328,7 @@ class FluxorIntegrado(QWidget):
 
     def atualizar_botoes(self):
         ativo = self.thread is not None
-        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo, self.destino_tipo):
+        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo, self.destino_tipo, self.origem_caminho, self.b_usar_caminho):
             b.setEnabled(not ativo)
         self.b_organizar.setEnabled(not ativo and self.plano is not None)
         self.b_cancelar.setEnabled(ativo)
@@ -292,6 +359,7 @@ class FluxorIntegrado(QWidget):
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.executar)
         self.worker.progresso.connect(self.progresso)
+        self.worker.varredura.connect(self.atualizar_varredura)
         self.worker.pronto.connect(self.pronto)
         self.worker.falha.connect(self.falha)
         self.worker.finalizado.connect(self.thread.quit)
@@ -300,6 +368,12 @@ class FluxorIntegrado(QWidget):
         self.thread.finished.connect(self.liberar)
         self.atualizar_botoes()
         self.thread.start()
+
+    def atualizar_varredura(self, quantidade, pasta):
+        if self.tarefa == "preview":
+            self.status.setText(
+                f"Lendo origem: {quantidade} arquivos encontrados · {pasta}"
+            )
 
     def progresso(self, atual, total):
         self.barra.setValue(round(atual * 100 / total) if total else 100)

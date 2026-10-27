@@ -4,12 +4,13 @@ import hashlib
 from pathlib import Path
 import os
 import shutil
+import time
 
 from fluxor_core.classifier import classificar_arquivo, obter_extensao
 from fluxor_core.organizer import validar_pastas
 from fluxor_core.merge import require_safe_target, ensure_no_links, candidates, matching_content, preview_entries
 
-MODOS = ("Por tipo", "Por extensão", "Por ano", "Por ano e mês")
+MODOS = ("Por tipo", "Por extensão", "Por ano", "Por ano e mês", "Por tipo e ano", "Por tipo, ano e mês")
 
 
 def _categoria(item, modo):
@@ -20,10 +21,16 @@ def _categoria(item, modo):
     data = datetime.fromtimestamp(item.stat().st_mtime)
     if modo == "Por ano":
         return str(data.year)
-    return f"{data.year}/{data.month:02d}"
+    if modo == "Por ano e mês":
+        return f"{data.year}/{data.month:02d}"
+    if modo == "Por tipo e ano":
+        return str(Path(classificar_arquivo(item)) / str(data.year))
+    if modo == "Por tipo, ano e mês":
+        return str(Path(classificar_arquivo(item)) / str(data.year) / f"{data.month:02d}")
+    raise ValueError("Modo de organização inválido.")
 
 
-def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False):
+def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False, informar=None):
     if modo not in MODOS:
         raise ValueError("Modo de organizacao invalido.")
     if acrescentar:
@@ -39,8 +46,31 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         raise ValueError("O destino organizado não pode ser um link simbólico.")
     arquivos = []
     avisos = []
-    # No symlink folders and no symlink files; avoid copying macOS packages.
-    for pasta, subpastas, nomes in os.walk(origem, followlinks=False):
+    # The OS may expose broken/unreachable network subfolders. Do not silently
+    # report a complete scan if scandir fails inside a share.
+    def handle_walk_error(erro):
+        avisos.append(f"Pasta inacessível: {erro.filename or origem} — {erro}")
+
+    visited_directories = set()
+    last_heartbeat = time.monotonic()
+    # Never follow nested symbolic links, including aliases to remote shares.
+    for pasta, subpastas, nomes in os.walk(
+        origem, followlinks=False, onerror=handle_walk_error
+    ):
+        try:
+            canonical = str(Path(pasta).resolve(strict=True))
+        except (OSError, RuntimeError) as erro:
+            avisos.append(f"Pasta ignorada por erro de caminho: {pasta} — {erro}")
+            subpastas[:] = []
+            continue
+        if canonical in visited_directories:
+            avisos.append(f"Referência circular ignorada: {pasta}")
+            subpastas[:] = []
+            continue
+        visited_directories.add(canonical)
+        if informar and time.monotonic() - last_heartbeat > .35:
+            informar(len(arquivos), Path(pasta).name or str(pasta))
+            last_heartbeat = time.monotonic()
         if cancelar and cancelar():
             raise InterruptedError("Prévia interrompida pelo usuário.")
         subpastas[:] = sorted(
@@ -58,7 +88,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 categoria = _categoria(item, modo)
                 info = item.stat()
                 tamanho = info.st_size
-            except OSError as erro:
+            except (OSError, ValueError, OverflowError) as erro:
                 avisos.append(f"{item}: {erro}")
                 continue
             arquivos.append({
@@ -68,6 +98,11 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 "tamanho": tamanho,
                 "modified_ns": info.st_mtime_ns,
             })
+            if informar and time.monotonic() - last_heartbeat > .35:
+                informar(len(arquivos), Path(pasta).name or str(pasta))
+                last_heartbeat = time.monotonic()
+    if informar:
+        informar(len(arquivos), "Leitura concluída")
     resumo_acrescimo = (
         preview_entries(arquivos, base, sha256_arquivo, cancelar)
         if acrescentar else {"novos": len(arquivos), "ignorados_identicos": 0, "nomes_alternativos": 0}
