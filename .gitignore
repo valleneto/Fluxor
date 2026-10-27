@@ -17,3 +17,9 @@ __pycache__/
 logs/*.txtsandbox/
 /sandbox/
 *.pyc
+
+# OS014 generated build artifacts
+/build/
+/dist/
+/Fluxor Control.spec
+*.spec
