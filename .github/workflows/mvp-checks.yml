@@ -2,7 +2,7 @@ name: Fluxor MVP checks
 
 on:
   pull_request:
-    branches: [master, dev/inspector-contextual-20261026, dev/design-premium-os016, dev/visual-graffiti-os017]
+    branches: [master, dev/inspector-contextual-20261026, dev/design-premium-os016, dev/visual-graffiti-os017, dev/zen-sand-luxury-os018]
   workflow_dispatch:
 
 jobs:
@@ -61,6 +61,9 @@ jobs:
 
       - name: OS014 rollback and file integrity
         run: python -m tests.test_os014
+
+      - name: OS019 incremental merge and collision safety
+        run: python -m tests.test_os019
 
       - name: OS014 synthetic 50k performance
         run: python -m tests.test_os014_performance
