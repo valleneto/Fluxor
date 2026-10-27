@@ -96,6 +96,12 @@ def main():
         else:
             raise AssertionError("must choose Fluxor_Organizado itself")
         try:
+            planejar(incoming, base, "Por tipo", acrescentar=False)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("must reject nested Fluxor_Organizado")
+        try:
             planejar(base, base, "Por tipo", acrescentar=True)
         except ValueError:
             pass
