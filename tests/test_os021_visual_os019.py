@@ -37,6 +37,10 @@ def main():
         window.navigate(1)
         app.processEvents()
         assert not hasattr(window.library, "smb_button")
+        assert window.library.index_button.text() == "+  Adicionar pasta"
+        assert window.side_home.text() == "01   /   INÍCIO"
+        assert window.side_library.text() == "02   /   BIBLIOTECA"
+        assert window.side_organize.text() == "03   /   ORGANIZAR"
         picker = SafeFolderPicker(initial=directory)
         picker.show()
         app.processEvents()
