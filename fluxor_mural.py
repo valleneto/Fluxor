@@ -22,6 +22,15 @@ class FluxorMural(ZenCore):
         self.setMinimumSize(240, 170)
         # Same 20fps ceiling as ZenCore, essential for older Macs.
         self.timer.setInterval(50)
+        # Cache vector glyphs: QPainterPath.addText does font shaping and should
+        # never run sixty times a minute just to redraw a slow motion ribbon.
+        font = QFont("Arial Black")
+        font.setBold(True)
+        font.setItalic(True)
+        font.setPixelSize(130)
+        self._lettering = QPainterPath()
+        self._lettering.addText(0, 0, font, "FLUXOR")
+        self._letter_bounds = self._lettering.boundingRect()
 
     @staticmethod
     def _ribbon(p, w, h, phase, lane, color):
@@ -111,13 +120,8 @@ class FluxorMural(ZenCore):
 
         # Hand-composed lettering: stretched, slanted, outlined, layered like
         # a clean graffiti piece. All geometry remains scalable and local.
-        font = QFont("Arial Black")
-        font.setBold(True)
-        font.setItalic(True)
-        font.setPixelSize(130)
-        lettering = QPainterPath()
-        lettering.addText(0, 0, font, "FLUXOR")
-        bounds = lettering.boundingRect()
+        lettering = self._lettering
+        bounds = self._letter_bounds
         target_w, target_h = w * .79, h * .37
         scale = min(target_w / max(bounds.width(), 1),
                     target_h / max(bounds.height(), 1))
