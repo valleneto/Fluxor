@@ -117,7 +117,7 @@ def main():
         (current / "hidden.mov").write_bytes(b"far away")
         limited = planejar(deep, root / "deep-output")
         assert limited["total_arquivos"] == 0
-        assert any("Profundidade" in warning for warning in limited["avisos"])
+        assert not limited["completa"] and any("Profundidade" in error for error in limited["bloqueios"])
     print("OS020 combined type/date, append, safe progress and cycles passed")
 
 
