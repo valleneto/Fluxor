@@ -193,6 +193,13 @@ QToolTip {
 
 # Graffiti is street lettering and painted motion, not a grey-only UI theme.
 STYLESHEET += """
+QLabel#tagMark {
+    color: #ef846a;
+    font-family: "Arial Black", "Helvetica Neue", sans-serif;
+    font-size: 25px;
+    font-weight: 900;
+    padding: 0 4px;
+}
 QLabel#brandName {
     font-family: "Arial Black", "Helvetica Neue", sans-serif;
     color: #f3f1e9;
