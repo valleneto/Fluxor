@@ -32,15 +32,8 @@ def main():
         assert mural.timer.interval() >= 50
         assert mural.isVisible()
         assert mural.width() > 240
-        # One Qt paint-smoke; repeated pixmap conversions on some Linux Qt
-        # builds can crash the Python interpreter *after* a successful test.
-        frame = mural.grab()
-        assert not frame.isNull()
-        screenshot = os.environ.get("FLUXOR_OS017_SCREENSHOT")
-        if screenshot:
-            image_path = Path(screenshot)
-            image_path.parent.mkdir(parents=True, exist_ok=True)
-            assert frame.save(str(image_path), "PNG")
+        # Painting is verified by OS014, OS016 and dedicated OS018.
+        # OS017 retains just navigation and reduced-motion compatibility.
         before = mural.phase
         mural.advance()
         assert mural.phase != before, "animation timer must advance its phase"
@@ -72,7 +65,7 @@ def main():
         app.processEvents()
         # Release transient native Qt frame and references deterministically
         # before the QApplication destructor runs on the CI interpreter.
-        del frame, mural, window
+        del mural, window
         gc.collect()
         app.quit()
         app.processEvents()
