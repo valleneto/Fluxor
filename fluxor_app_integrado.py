@@ -7,10 +7,11 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QCheckBox, QFileDialog, QTextEdit,
-    QProgressBar, QMessageBox,
+    QProgressBar, QMessageBox, QGridLayout,
 )
 
 from fluxor_core.plan import MODOS, planejar, executar_plano
+from fluxor_network import select_network_folder, connect_smb
 
 
 class Tarefa(QObject):
@@ -84,6 +85,15 @@ class FluxorIntegrado(QWidget):
         pasta_botoes.addWidget(self.b_origem)
         pasta_botoes.addWidget(self.b_destino)
         root.addLayout(pasta_botoes)
+        network_actions = QHBoxLayout()
+        self.b_rede = QPushButton("Origem da rede")
+        self.b_conectar = QPushButton("Conectar SMB")
+        self.b_rede.clicked.connect(self.escolher_origem_rede)
+        self.b_conectar.clicked.connect(lambda: connect_smb(self))
+        network_actions.addWidget(self.b_rede)
+        network_actions.addWidget(self.b_conectar)
+        network_actions.addStretch()
+        root.addLayout(network_actions)
 
         opcoes = QHBoxLayout()
         self.modo = QComboBox()
@@ -96,7 +106,7 @@ class FluxorIntegrado(QWidget):
         opcoes.addWidget(self.recursivo)
         root.addLayout(opcoes)
 
-        acoes = QHBoxLayout()
+        acoes = QGridLayout()
         self.b_previa = QPushButton("1. Pré-visualizar")
         self.b_organizar = QPushButton("2. Organizar")
         self.b_cancelar = QPushButton("Cancelar")
@@ -105,8 +115,10 @@ class FluxorIntegrado(QWidget):
         self.b_organizar.clicked.connect(lambda: self.iniciar("organizar"))
         self.b_cancelar.clicked.connect(self.cancelar)
         self.b_abrir.clicked.connect(self.abrir)
-        for b in (self.b_previa, self.b_organizar, self.b_cancelar, self.b_abrir):
-            acoes.addWidget(b)
+        for i, b in enumerate((self.b_previa, self.b_organizar, self.b_cancelar, self.b_abrir)):
+            acoes.addWidget(b, i // 2, i % 2)
+        acoes.setColumnStretch(0, 1)
+        acoes.setColumnStretch(1, 1)
         root.addLayout(acoes)
 
         self.status = QLabel("Aguardando seleção.")
@@ -131,6 +143,13 @@ class FluxorIntegrado(QWidget):
             self.origem_label.setText(f"Origem: {pasta}")
             self.invalidar_previa()
 
+    def escolher_origem_rede(self):
+        pasta = select_network_folder(self, "Escolher origem na rede")
+        if pasta:
+            self.origem = pasta
+            self.origem_label.setText(f"Origem: {pasta}")
+            self.invalidar_previa()
+
     def escolher_destino(self):
         pasta = QFileDialog.getExistingDirectory(self, "Escolher destino")
         if pasta:
@@ -140,7 +159,7 @@ class FluxorIntegrado(QWidget):
 
     def atualizar_botoes(self):
         ativo = self.thread is not None
-        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo):
+        for b in (self.b_origem, self.b_destino, self.b_rede, self.b_conectar, self.b_previa, self.modo, self.recursivo):
             b.setEnabled(not ativo)
         self.b_organizar.setEnabled(not ativo and self.plano is not None)
         self.b_cancelar.setEnabled(ativo)
