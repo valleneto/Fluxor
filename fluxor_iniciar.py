@@ -1,7 +1,7 @@
 """Fluxor Control — single-window navigation with preserved page state."""
 import sys
 from pathlib import Path
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import QTimer
 
 from PySide6.QtWidgets import (
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from fluxor_biblioteca import Biblioteca
 from fluxor_app_integrado import FluxorIntegrado
 from fluxor_zen import ZenCore
+from fluxor_design import STYLESHEET
 from fluxor_core.library import catalog_summary
 
 
@@ -31,44 +32,45 @@ class Inicio(QWidget):
             )
         else:
             self.resize(1000, 650)
-        self.setStyleSheet("""
-            QWidget { background-color: #101720; color: #eef4fa; font-family: 'Helvetica Neue'; font-size: 13px; }
-            QLabel { background: transparent; }
-            QLabel#eyebrow { color: #81c9d0; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-            QPushButton { background: #202d3d; color: #e9f2fa; border: 1px solid #314358;
-                          padding: 9px 14px; border-radius: 9px; }
-            QPushButton:hover { background: #2b4053; border-color: #5cbac5; }
-            QPushButton:pressed { background: #24565e; }
-            QPushButton:disabled { color: #718194; background: #182330; border-color: #243141; }
-            QLineEdit, QComboBox { background: #182433; border: 1px solid #314358;
-                                  padding: 8px; border-radius: 8px; selection-background-color: #287987; }
-            QTableWidget, QListWidget, QTextEdit { background: #151f2c; alternate-background-color: #1b2939;
-                        color: #e6eff7; border: 1px solid #304255; border-radius: 11px;
-                        gridline-color: #253547; selection-background-color: #225864; }
-            QHeaderView::section { background: #243347; color: #d8e5f0; border: none;
-                                   border-right: 1px solid #33465b; padding: 9px; }
-            QStackedWidget { border: none; }
-            QWidget#mediaPanel { background: #182433; border: 1px solid #304255; border-radius: 14px; }
-            QFrame#sidebar { background: #172331; border: 1px solid #314358; border-radius: 13px; }
-            QScrollBar:vertical { background: #14202d; width: 10px; }
-            QScrollBar::handle:vertical { background: #43566b; border-radius: 4px; min-height: 22px; }
-        """)
+        self.setStyleSheet(STYLESHEET)
         self.history = []
         self.future = []
         root = QHBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(14)
+        root.setSpacing(16)
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(205)
+        self.sidebar = sidebar
+        sidebar.setFixedWidth(190)
         side = QVBoxLayout(sidebar)
-        wordmark = QLabel("◈  FLUXOR")
-        wordmark.setStyleSheet("color: #8fe5e5; font-size: 23px; font-weight: 800; padding: 18px 4px;")
-        side.addWidget(wordmark)
-        side.addWidget(QLabel("Find what matters."))
-        self.side_home = QPushButton("⌂   Visão geral")
-        self.side_library = QPushButton("▤   Biblioteca")
-        self.side_organize = QPushButton("◈   Organização segura")
+        side.setContentsMargins(12, 18, 12, 14)
+        side.setSpacing(9)
+        brand = QHBoxLayout()
+        logo_mark = QLabel()
+        if logo_path.is_file():
+            logo_mark.setPixmap(QPixmap(str(logo_path)).scaled(
+                30, 30, __import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AspectRatioMode.KeepAspectRatio,
+                __import__("PySide6.QtCore", fromlist=["Qt"]).Qt.TransformationMode.SmoothTransformation,
+            ))
+        else:
+            logo_mark.setText("◈")
+        brand.addWidget(logo_mark)
+        wordmark = QLabel("FLUXOR")
+        wordmark.setStyleSheet("color: #d8f4f7; font-size: 19px; font-weight: 750; letter-spacing: 2px;")
+        brand.addWidget(wordmark)
+        brand.addStretch()
+        side.addLayout(brand)
+        strap = QLabel("Seu universo digital, em ordem.")
+        strap.setObjectName("sidebarCaption")
+        strap.setWordWrap(True)
+        side.addWidget(strap)
+        side.addSpacing(20)
+        self.side_home = QPushButton("Visão geral")
+        self.side_library = QPushButton("Biblioteca")
+        self.side_organize = QPushButton("Organização segura")
+        for nav_button in (self.side_home, self.side_library, self.side_organize):
+            nav_button.setObjectName("navButton")
+            nav_button.setCheckable(True)
         self.side_home.clicked.connect(lambda: self.navigate(0))
         self.side_library.clicked.connect(lambda: self.navigate(1))
         self.side_organize.clicked.connect(lambda: self.navigate(2))
@@ -82,7 +84,10 @@ class Inicio(QWidget):
         self.sidebar_activity = QLabel("Atividade em andamento")
         self.sidebar_activity.setVisible(False)
         side.addWidget(self.sidebar_activity)
-        side.addWidget(QLabel("BETA  •  Seus arquivos permanecem seus."))
+        trust = QLabel("LOCAL · BETA\nSeus arquivos permanecem seus.")
+        trust.setObjectName("sidebarCaption")
+        trust.setWordWrap(True)
+        side.addWidget(trust)
         root.addWidget(sidebar)
         main = QVBoxLayout()
         root.addLayout(main, 1)
@@ -90,7 +95,9 @@ class Inicio(QWidget):
         nav = QHBoxLayout()
         self.back_button = QPushButton("← Voltar")
         self.forward_button = QPushButton("Avançar →")
-        self.home_button = QPushButton("⌂ Início")
+        self.home_button = QPushButton("Início")
+        for nav_control in (self.back_button, self.forward_button, self.home_button):
+            nav_control.setObjectName("quietAction")
         self.back_button.clicked.connect(self.go_back)
         self.forward_button.clicked.connect(self.go_forward)
         self.home_button.clicked.connect(lambda: self.navigate(0))
@@ -102,39 +109,51 @@ class Inicio(QWidget):
         self.pages = QStackedWidget()
         start = QWidget()
         start_layout = QVBoxLayout(start)
-        start_layout.setSpacing(14)
-        title = QLabel("FLUXOR")
-        title.setStyleSheet("font-size: 38px; font-weight: 800; letter-spacing: 3px; color: #8fe5e5;")
+        start_layout.setContentsMargins(16, 12, 16, 12)
+        start_layout.setSpacing(12)
+        eyebrow = QLabel("UM LUGAR MAIS CLARO PARA SEUS ARQUIVOS")
+        eyebrow.setObjectName("sectionEyebrow")
+        start_layout.addWidget(eyebrow)
+        title = QLabel("Encontre o que importa.")
+        title.setObjectName("heroTitle")
+        title.setWordWrap(True)
         start_layout.addWidget(title)
-        start_layout.addWidget(QLabel("Find what matters.  ·  Clareza para seu universo digital."))
+        tagline = QLabel("Descubra, revise e organize com tranquilidade. Nada é apagado automaticamente.")
+        tagline.setObjectName("muted")
+        tagline.setWordWrap(True)
+        start_layout.addWidget(tagline)
         center = QFrame()
-        center.setObjectName("sidebar")
+        center.setObjectName("heroPanel")
         center_layout = QVBoxLayout(center)
-        center_layout.setContentsMargins(22, 18, 22, 18)
+        center_layout.setContentsMargins(22, 16, 22, 16)
+        center_layout.setSpacing(4)
         self.zen = ZenCore(center)
         center_layout.addWidget(self.zen, 1)
-        self.zen_state = QLabel("UM ESPAÇO PARA RESPIRAR")
+        self.zen_state = QLabel("PRONTO PARA EXPLORAR")
         self.zen_state.setAlignment(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
-        self.zen_state.setStyleSheet("font-size: 15px; font-weight: 700; color: #b5dbe1;")
+        self.zen_state.setObjectName("eyebrow")
         center_layout.addWidget(self.zen_state)
-        self.home_stats = QLabel("Sua Biblioteca espera a primeira leitura.")
+        self.home_stats = QLabel("Escolha uma pasta na Biblioteca para começar.")
         self.home_stats.setAlignment(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
+        self.home_stats.setObjectName("muted")
+        self.home_stats.setWordWrap(True)
         center_layout.addWidget(self.home_stats)
         start_layout.addWidget(center, 1)
         actions = QHBoxLayout()
         browse = QPushButton("Explorar Biblioteca  →")
-        organize = QPushButton("Organizar com segurança  →")
+        browse.setObjectName("primaryAction")
+        organize = QPushButton("Organizar com segurança")
         browse.clicked.connect(lambda: self.navigate(1))
         organize.clicked.connect(lambda: self.navigate(2))
         actions.addWidget(browse)
-        actions.addStretch()
         actions.addWidget(organize)
+        actions.addStretch()
         start_layout.addLayout(actions)
         self.reduce_motion = QCheckBox("Reduzir movimento")
+        self.reduce_motion.setToolTip("Desativa a animação sem impedir o funcionamento do aplicativo")
         self.reduce_motion.toggled.connect(self.zen.set_reduced_motion)
         self.reduce_motion.toggled.connect(self.sidebar_zen.set_reduced_motion)
         start_layout.addWidget(self.reduce_motion)
-        start_layout.addWidget(QLabel("O centro visual indica atividade, não porcentagem de progresso."))
         self.pages.addWidget(start)
         self.library = Biblioteca()
         self.organizer = FluxorIntegrado()
@@ -204,7 +223,7 @@ class Inicio(QWidget):
             self.zen_state.setText("ORGANIZANDO COM CUIDADO")
         else:
             self.zen.set_state("idle")
-            self.zen_state.setText("UM ESPAÇO PARA RESPIRAR")
+            self.zen_state.setText("PRONTO PARA EXPLORAR")
         if self.pages.currentIndex() != 0:
             return
         if self.library.db.exists():
@@ -243,6 +262,8 @@ class Inicio(QWidget):
         self.back_button.setEnabled(bool(self.history))
         self.forward_button.setEnabled(bool(self.future))
         self.home_button.setEnabled(self.pages.currentIndex() != 0)
+        for idx, button in enumerate((self.side_home, self.side_library, self.side_organize)):
+            button.setChecked(self.pages.currentIndex() == idx)
 
     def closeEvent(self, event):
         if self.active_operation():

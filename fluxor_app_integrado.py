@@ -1,13 +1,14 @@
 """Fluxor experimental beta: preview-first, safe copying, responsive UI."""
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QCheckBox, QFileDialog, QTextEdit,
-    QProgressBar, QMessageBox,
+    QProgressBar, QMessageBox, QFrame, QScrollArea,
 )
 
 from fluxor_core.plan import MODOS, planejar, executar_plano
@@ -64,18 +65,47 @@ class FluxorIntegrado(QWidget):
         self.worker = None
         self.tarefa = None
         self.last_outcome = 'idle'
+        self.started_at = None
 
         root = QVBoxLayout(self)
-        titulo = QLabel("FLUXOR  |  Organização consciente")
-        titulo.setStyleSheet("font-size: 24px; font-weight: 650;")
+        root.setContentsMargins(16, 12, 16, 12)
+        root.setSpacing(12)
+        eyebrow = QLabel("CÓPIA SEGURA · ORIGINAL PRESERVADO")
+        eyebrow.setObjectName("sectionEyebrow")
+        root.addWidget(eyebrow)
+        titulo = QLabel("Organize com tranquilidade.")
+        titulo.setObjectName("pageTitle")
         root.addWidget(titulo)
-        root.addWidget(QLabel("Prévia obrigatória. Copia arquivos sem apagar os originais."))
+        subtitle = QLabel("Escolha o acervo, confira a prévia e só então autorize a cópia.")
+        subtitle.setObjectName("muted")
+        subtitle.setWordWrap(True)
+        root.addWidget(subtitle)
+        self.stages_scroll = QScrollArea()
+        self.stages_scroll.setObjectName("stageScroll")
+        self.stages_scroll.setWidgetResizable(True)
+        self.stages_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.stages_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.stages_scroll.setMinimumHeight(150)
+        self.stages_scroll.setMaximumHeight(310)
+        stages_content = QWidget()
+        stages_layout = QVBoxLayout(stages_content)
+        stages_layout.setContentsMargins(0, 0, 0, 0)
+        stages_layout.setSpacing(10)
+        self.stages_scroll.setWidget(stages_content)
 
+        acervo = QFrame()
+        acervo.setObjectName("stageCard")
+        acervo_layout = QVBoxLayout(acervo)
+        acervo_layout.setContentsMargins(16, 12, 16, 12)
+        acervo_layout.setSpacing(7)
+        acervo_title = QLabel("01  ACERVO")
+        acervo_title.setObjectName("sectionEyebrow")
+        acervo_layout.addWidget(acervo_title)
         self.origem_label = QLabel("Origem: selecione uma pasta")
         self.destino_label = QLabel("Destino: selecione uma pasta diferente")
-        root.addWidget(self.origem_label)
-        root.addWidget(self.destino_label)
-
+        for path_label in (self.origem_label, self.destino_label):
+            path_label.setWordWrap(True)
+            path_label.setObjectName("muted")
         pasta_botoes = QHBoxLayout()
         self.b_origem = QPushButton("Escolher origem")
         self.b_destino = QPushButton("Escolher destino")
@@ -83,8 +113,19 @@ class FluxorIntegrado(QWidget):
         self.b_destino.clicked.connect(self.escolher_destino)
         pasta_botoes.addWidget(self.b_origem)
         pasta_botoes.addWidget(self.b_destino)
-        root.addLayout(pasta_botoes)
+        acervo_layout.addWidget(self.origem_label)
+        acervo_layout.addWidget(self.destino_label)
+        acervo_layout.addLayout(pasta_botoes)
+        stages_layout.addWidget(acervo)
 
+        process = QFrame()
+        process.setObjectName("stageCard")
+        process_layout = QVBoxLayout(process)
+        process_layout.setContentsMargins(16, 12, 16, 12)
+        process_layout.setSpacing(8)
+        process_title = QLabel("02  ORGANIZAÇÃO")
+        process_title.setObjectName("sectionEyebrow")
+        process_layout.addWidget(process_title)
         opcoes = QHBoxLayout()
         self.modo = QComboBox()
         self.modo.addItems(MODOS)
@@ -92,36 +133,61 @@ class FluxorIntegrado(QWidget):
         self.recursivo = QCheckBox("Incluir subpastas")
         self.recursivo.setChecked(True)
         self.recursivo.toggled.connect(self.invalidar_previa)
-        opcoes.addWidget(self.modo)
+        opcoes.addWidget(self.modo, 1)
         opcoes.addWidget(self.recursivo)
-        root.addLayout(opcoes)
-
+        process_layout.addLayout(opcoes)
         acoes = QHBoxLayout()
-        self.b_previa = QPushButton("1. Pré-visualizar")
-        self.b_organizar = QPushButton("2. Organizar")
-        self.b_cancelar = QPushButton("Cancelar")
+        self.b_previa = QPushButton("1  Pré-visualizar")
+        self.b_previa.setObjectName("primaryAction")
+        self.b_organizar = QPushButton("2  Copiar com segurança")
+        self.b_cancelar = QPushButton("Interromper")
         self.b_abrir = QPushButton("Abrir resultado")
+        self.b_abrir.setObjectName("quietAction")
         self.b_previa.clicked.connect(lambda: self.iniciar("preview"))
         self.b_organizar.clicked.connect(lambda: self.iniciar("organizar"))
         self.b_cancelar.clicked.connect(self.cancelar)
         self.b_abrir.clicked.connect(self.abrir)
-        for b in (self.b_previa, self.b_organizar, self.b_cancelar, self.b_abrir):
-            acoes.addWidget(b)
-        root.addLayout(acoes)
+        for button in (self.b_previa, self.b_organizar, self.b_cancelar):
+            acoes.addWidget(button)
+        process_layout.addLayout(acoes)
+        stages_layout.addWidget(process)
+        stages_layout.addStretch()
+        root.addWidget(self.stages_scroll, 1)
 
+        report = QFrame()
+        report.setObjectName("stageCard")
+        report_layout = QVBoxLayout(report)
+        report_layout.setContentsMargins(16, 12, 16, 12)
+        report_layout.setSpacing(7)
+        report_header = QHBoxLayout()
+        report_title = QLabel("03  RELATÓRIO")
+        report_title.setObjectName("sectionEyebrow")
+        report_header.addWidget(report_title)
+        report_header.addStretch()
+        report_header.addWidget(self.b_abrir)
+        report_layout.addLayout(report_header)
         self.status = QLabel("Aguardando seleção.")
+        self.status.setWordWrap(True)
+        self.status.setObjectName("muted")
+        report_layout.addWidget(self.status)
         self.barra = QProgressBar()
         self.barra.setValue(0)
+        report_layout.addWidget(self.barra)
+        self.eta = QLabel("Tempo restante: —")
+        self.eta.setObjectName("muted")
+        report_layout.addWidget(self.eta)
         self.logs = QTextEdit()
         self.logs.setReadOnly(True)
-        root.addWidget(self.status)
-        root.addWidget(self.barra)
-        root.addWidget(self.logs)
+        self.logs.setMinimumHeight(100)
+        self.logs.setPlaceholderText("A prévia e o resultado da cópia aparecerão aqui.")
+        report_layout.addWidget(self.logs, 1)
+        root.addWidget(report, 1)
         self.atualizar_botoes()
 
     def invalidar_previa(self, *args):
         self.plano = None
         self.barra.setValue(0)
+        self.eta.setText("Tempo restante: —")
         self.atualizar_botoes()
 
     def escolher_origem(self):
@@ -158,6 +224,8 @@ class FluxorIntegrado(QWidget):
         self.tarefa = tipo
         self.last_outcome = "running"
         self.logs.clear()
+        self.started_at = time.monotonic()
+        self.eta.setText("Estimativa: calculando apenas durante a cópia." if tipo == "organizar" else "Prévia: tempo variável conforme o acervo.")
         self.barra.setValue(0)
         self.status.setText("Analisando..." if tipo == "preview" else "Copiando arquivos...")
         self.thread = QThread(self)
@@ -180,6 +248,12 @@ class FluxorIntegrado(QWidget):
     def progresso(self, atual, total):
         self.barra.setValue(round(atual * 100 / total) if total else 100)
         self.status.setText(f"Processados {atual}/{total}")
+        if self.started_at is not None and 3 <= atual < total:
+            elapsed = max(0, time.monotonic() - self.started_at)
+            estimate = (total - atual) * elapsed / atual
+            self.eta.setText(f"Tempo restante aproximado: {max(1, round(estimate))} s · estimativa por arquivo")
+        elif total and atual >= total:
+            self.eta.setText("Cópia concluída.")
 
     def pronto(self, resultado):
         self.last_outcome = ("partial" if resultado["avisos"] else "success") if self.tarefa == "preview" else ("cancelled" if resultado["cancelado"] else "partial" if resultado["total_erros"] else "success")
@@ -197,6 +271,7 @@ class FluxorIntegrado(QWidget):
                 self.logs.append(f"AVISO: {aviso}")
             self.barra.setValue(100)
             self.status.setText("Prévia concluída. Confira a lista antes de organizar.")
+            self.eta.setText("Prévia concluída. A duração da cópia dependerá dos arquivos e do disco.")
         else:
             self.plano = None
             self.saida = resultado["destino_base"]
@@ -208,6 +283,7 @@ class FluxorIntegrado(QWidget):
                 self.logs.append(f"ERRO: {erro['origem']} — {erro['erro']}")
             self.status.setText("Cancelado." if resultado["cancelado"] else
                                 "Concluído com erros." if resultado["total_erros"] else "Concluído.")
+            self.eta.setText("Operação finalizada; confira o relatório.")
             if resultado["total_encontrados"] == 0:
                 self.barra.setValue(100)
 
@@ -215,6 +291,7 @@ class FluxorIntegrado(QWidget):
         self.last_outcome = "cancelled" if mensagem.startswith("Operação cancelada") else "error"
         self.plano = None
         self.status.setText("Falha na operação.")
+        self.eta.setText("Tempo indisponível após falha.")
         self.logs.append(f"ERRO: {mensagem}")
 
     def cancelar(self):
