@@ -73,3 +73,8 @@ jobs:
           sudo apt-get install -y -qq libegl1 libopengl0 libxkbcommon0
           python -m pip install "PySide6_Essentials>=6.8,<7" "PySide6_Addons>=6.8,<7"
           python -m tests.test_os014_gui
+
+      - name: OS015 contextual Inspector GUI smoke
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m tests.test_os015_gui
