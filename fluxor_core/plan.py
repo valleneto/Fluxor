@@ -240,6 +240,7 @@ def executar_plano(plano, progresso=None, cancelar=None):
             progresso(indice, total)
     return {
         "destino_base": str(base),
+        "acrescentar": acrescentar,
         "total_encontrados": total,
         "total_copiados": copiados,
         "total_ignorados": ignorados,
