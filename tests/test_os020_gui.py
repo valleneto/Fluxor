@@ -30,6 +30,8 @@ def main():
         # Qt native backend teardown crash. Verify the actual factory calls
         # with a fake; native picker interaction must be validated on macOS.
         class FakePicker:
+            FileMode = QFileDialog.FileMode
+            Option = QFileDialog.Option
             def __init__(self, parent, title, start):
                 self.parent, self.title, self.start = parent, title, start
                 self.options = {}
