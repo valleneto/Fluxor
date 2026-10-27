@@ -22,6 +22,11 @@ def _categoria(item, modo):
     return f"{data.year}/{data.month:02d}"
 
 
+def _abort_unreadable_folder(error):
+    """A preview must not silently omit folders, especially on disconnected shares."""
+    raise error
+
+
 def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None):
     if modo not in MODOS:
         raise ValueError("Modo de organizacao invalido.")
@@ -29,7 +34,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None):
     arquivos = []
     avisos = []
     # No symlink folders and no symlink files; avoid copying macOS packages.
-    for pasta, subpastas, nomes in os.walk(origem, followlinks=False):
+    for pasta, subpastas, nomes in os.walk(origem, followlinks=False, onerror=_abort_unreadable_folder):
         if cancelar and cancelar():
             raise InterruptedError("Prévia interrompida pelo usuário.")
         subpastas[:] = sorted(
