@@ -63,6 +63,17 @@ def main():
             bottom = card.mapTo(window, QPoint(0, card.height())).y()
             assert bottom <= window.height() + 6, (card.objectName(), bottom, window.height())
 
+        assert window.organizer.stages_scroll.isVisible()
+        # On a smaller laptop viewport the report remains visible,
+        # while source/options can scroll independently.
+        window.resize(900, 580)
+        app.processEvents()
+        report = cards[-1]
+        report_bottom = report.mapTo(window, QPoint(0, report.height())).y()
+        assert report_bottom <= window.height() + 6, (
+            "report is cut off", report_bottom, window.height())
+        assert window.organizer.logs.isVisible()
+
         assert fixture.read_bytes() == b"synthetic-file-only"
         window.close()
         app.processEvents()
