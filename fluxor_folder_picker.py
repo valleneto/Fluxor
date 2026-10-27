@@ -170,7 +170,7 @@ class SafeFolderPicker(QDialog):
             self._results.ready.emit(token, requested, [], False, str(exc), select)
 
     def _on_ready(self, token, path, entries, has_more, error, select):
-        if token != self._ticket or not self.isVisible():
+        if token != self._ticket:
             return
         self._timeout.stop()
         self._busy = False
