@@ -1,181 +1,160 @@
-"""FLUXOR Mural — vector street-art motion, no images or network assets.
+"""FLUXOR Sand Flow — procedural Japanese-garden screen animation.
 
-Art direction: spray-painted street lettering, rhythmic ribbons and purposeful
-movement. 100% QPainter, reusable in the existing safe desktop Qt app.
+Lines are progressively raked across the canvas, first row to last, changing
+direction on each row. After the last row a new muted silver/gold pass gently
+redraws the previous patterns. No photographs, giant logo, bloom or fake data.
 """
 import math
 
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import (
-    QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath,
-    QPen, QRadialGradient, QTransform,
-)
+from PySide6.QtGui import QColor, QBrush, QLinearGradient, QPainter, QPainterPath, QPen
 
 from fluxor_zen import ZenCore
 
 
 class FluxorMural(ZenCore):
-    """Original authored mural. Keeps ZenCore state and reduced-motion API."""
+    """A restrained sand-rake screensaver, compatible with ZenCore controls."""
+
+    ROWS = 7
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(240, 170)
-        # Same 20fps ceiling as ZenCore, essential for older Macs.
-        self.timer.setInterval(50)
-        # Cache vector glyphs: QPainterPath.addText does font shaping and should
-        # never run sixty times a minute just to redraw a slow motion ribbon.
-        font = QFont("Arial Black")
-        font.setBold(True)
-        font.setItalic(True)
-        font.setPixelSize(130)
-        self._lettering = QPainterPath()
-        self._lettering.addText(0, 0, font, "FLUXOR")
-        self._letter_bounds = self._lettering.boundingRect()
+        self.phase = 1.25  # Visible grooves on the first frame, not an empty canvas.
+        self.setMinimumSize(235, 175)
+        self.timer.setInterval(50)  # 20 FPS at most.
 
     def advance(self):
-        """Keep the field visibly alive without accelerating in background."""
-        if not self.isVisible() or self.reduced_motion:
+        if self.reduced_motion or not self.isVisible():
             return
-        speed = {
-            "idle": 0.95,
-            "scanning": 1.45,
-            "organizing": 1.65,
-            "complete": 0.0,
-            "error": 0.0,
-        }.get(self.state, 0.95)
-        if speed:
-            self.phase = (self.phase + speed) % 360.0
-            self.update()
+        if self.state in ("complete", "error"):
+            return
+        rate = 0.012 if self.state == "idle" else 0.019
+        self.phase += rate
+        # Keep floating point bounded; each pass has 7 rows.
+        if self.phase >= self.ROWS * 6:
+            self.phase -= self.ROWS * 4
+        self.update()
 
     @staticmethod
-    def _ribbon(p, w, h, phase, lane, color):
-        offset = math.sin(phase * (0.8 + lane * 0.12) + lane) * h * 0.022
-        y = h * (0.22 + lane * 0.23) + offset
-        path = QPainterPath(QPointF(-w * .12, y + h * .16))
-        path.cubicTo(
-            QPointF(w * .23, y - h * .31 + offset),
-            QPointF(w * .42, y + h * .30),
-            QPointF(w * .70, y - h * .11),
-        )
-        path.cubicTo(
-            QPointF(w * .84, y - h * .29 - offset),
-            QPointF(w * 1.04, y + h * .19),
-            QPointF(w * 1.13, y - h * .15),
-        )
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.setPen(QPen(color, max(1.6, h * (.008 if lane != 1 else .011)),
-                      Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        p.drawPath(path)
-        lighter = QColor(color)
-        lighter.setAlpha(55)
-        p.setPen(QPen(lighter, max(2.0, h * .035),
-                      Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        p.drawPath(path)
+    def _color(passage):
+        """Alternating natural-garden tones: silver mineral and brushed sand gold."""
+        return QColor("#d4d0c6") if passage % 2 == 0 else QColor("#bda57d")
 
     @staticmethod
-    def _spray(p, w, h):
-        """Deterministic tiny dots: textural finish, not an animated particle field."""
-        p.setPen(Qt.PenStyle.NoPen)
-        # Fixed distribution, no random state or file reads.
-        for i in range(115):
-            x = ((i * 79 + 37) % 997) / 997 * w
-            y = ((i * 127 + 59) % 991) / 991 * h
-            edge = abs(x / max(1, w) - .5)
-            tone = QColor(197, 207, 210, 14 if edge < .25 else 28)
-            p.setBrush(tone)
-            diameter = 0.65 + (i % 3) * 0.35
-            p.drawEllipse(QRectF(x, y, diameter, diameter))
+    def _line_path(w, y, h, lane, passage, row):
+        """Only straight segments with controlled bends; never concentric rings."""
+        offset = (lane - 2.5) * max(3.1, h * .092)
+        y += offset
+        drift = h * (.12 if (row + passage) % 2 == 0 else -.115)
+        shift = (passage % 3 - 1) * h * .10
+        p = QPainterPath(QPointF(-6, y))
+        p.lineTo(w * .17, y)
+        p.lineTo(w * .245, y + drift)
+        p.lineTo(w * .38, y + drift)
+        p.lineTo(w * .47, y - drift * .42 + shift)
+        p.lineTo(w * .71, y - drift * .42 + shift)
+        p.lineTo(w * .79, y + drift * .20)
+        p.lineTo(w + 6, y + drift * .20)
+        return p
+
+    @classmethod
+    def _draw_grooves(cls, painter, w, center_y, row_h, passage, row):
+        color = cls._color(passage)
+        # Sand incision: dark shadow below, slender pearly/mineral ridge above.
+        for lane in range(6):
+            curve = cls._line_path(w, center_y, row_h, lane, passage, row)
+            painter.setPen(QPen(QColor(8, 9, 11, 180), 3.2,
+                                Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap,
+                                Qt.PenJoinStyle.MiterJoin))
+            painter.drawPath(curve)
+            painter.save()
+            painter.translate(0, -1.25)
+            painter.setPen(QPen(QColor(color.red(), color.green(), color.blue(), 205),
+                                1.35, Qt.PenStyle.SolidLine,
+                                Qt.PenCapStyle.FlatCap, Qt.PenJoinStyle.MiterJoin))
+            painter.drawPath(curve)
+            painter.restore()
+
+        # Sparse direction motif carved in the same material as the lines.
+        if row % 3 == 1:
+            x = w * (.80 if (row + passage) % 2 == 0 else .20)
+            arrow = 1 if (row + passage) % 2 == 0 else -1
+            y = center_y - row_h * .34
+            size = min(11, row_h * .20)
+            painter.setPen(QPen(QColor(color.red(), color.green(), color.blue(), 115),
+                                1.5, Qt.PenStyle.SolidLine,
+                                Qt.PenCapStyle.FlatCap, Qt.PenJoinStyle.MiterJoin))
+            painter.drawLine(QPointF(x - arrow * size, y - size * .60), QPointF(x, y))
+            painter.drawLine(QPointF(x - arrow * size, y + size * .60), QPointF(x, y))
 
     def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         w, h = float(self.width()), float(self.height())
-        if w < 2 or h < 2:
-            p.end()
+        if w <= 2 or h <= 2:
+            painter.end()
             return
 
-        background = QLinearGradient(0, 0, w, h)
-        background.setColorAt(0.0, QColor("#0b1016"))
-        background.setColorAt(0.55, QColor("#161823"))
-        background.setColorAt(1.0, QColor("#0c1116"))
-        p.fillRect(self.rect(), QBrush(background))
+        sand = QLinearGradient(0, 0, w, h)
+        sand.setColorAt(0, QColor("#141517"))
+        sand.setColorAt(.55, QColor("#1d1b19"))
+        sand.setColorAt(1, QColor("#0f1114"))
+        painter.fillRect(self.rect(), QBrush(sand))
 
-        glow = QRadialGradient(QPointF(w * .50, h * .47), max(w, h) * .54)
-        glow.setColorAt(0.0, QColor(46, 83, 84, 125))
-        glow.setColorAt(0.60, QColor(29, 46, 58, 57))
-        glow.setColorAt(1.0, QColor(10, 17, 25, 0))
-        p.fillRect(self.rect(), QBrush(glow))
+        # Deterministic, quiet sand grain; not high-cost noise or bright particles.
+        painter.setPen(Qt.PenStyle.NoPen)
+        for i in range(250):
+            x = ((i * 97 + 31) % 991) / 991.0 * w
+            y = ((i * 191 + 73) % 983) / 983.0 * h
+            c = QColor(178, 166, 146, 15 if i % 3 else 26)
+            painter.setBrush(c)
+            d = .40 + (i % 3) * .27
+            painter.drawEllipse(QRectF(x, y, d, d))
 
-        # Architectural concrete grid, deliberately irregular and low contrast.
-        p.setPen(QPen(QColor(157, 173, 181, 19), 1))
-        spacing = max(35, int(w / 13))
-        for x in range(-spacing, int(w) + spacing, spacing):
-            p.drawLine(x, 0, x + int(h * .08), int(h))
-        p.setPen(QPen(QColor(157, 173, 181, 12), 1))
-        for y in (h * .20, h * .52, h * .86):
-            p.drawLine(QPointF(0, y), QPointF(w, y - h * .055))
+        rows = self.ROWS
+        pad = max(12.0, min(h * .055, 25.0))
+        row_height = (h - pad * 2) / rows
+        passage = int(self.phase // rows)
+        active_row = int(self.phase % rows)
+        fraction = self.phase - int(self.phase)
 
-        phase = math.radians(self.phase)
-        intensity = 1 if self.state in ("scanning", "organizing") else .55
-        t = phase * intensity
-        self._ribbon(p, w, h, t, 0, QColor(116, 218, 207, 170))
-        self._ribbon(p, w, h, -t * .7, 1, QColor(236, 105, 83, 200))
-        self._ribbon(p, w, h, t * .55, 2, QColor(213, 235, 108, 185))
-        self._spray(p, w, h)
+        for row in range(rows):
+            top = pad + row * row_height
+            middle = top + row_height * .50
+            rectangle = QRectF(0, top, w, row_height)
+            painter.save()
+            painter.setClipRect(rectangle)
+            # Rows yet to be redrawn keep the marks from the preceding pass.
+            if passage > 0:
+                self._draw_grooves(painter, w, middle, row_height, passage - 1, row)
 
-        # Raw angled marks, reminiscent of paint dashes but kept legible.
-        accent = QColor("#d8eb76") if self.state != "error" else QColor("#fd886f")
-        p.setPen(QPen(accent, max(2, h * .010), Qt.PenStyle.SolidLine,
-                      Qt.PenCapStyle.RoundCap))
-        p.drawLine(QPointF(w * .12, h * .27), QPointF(w * .18, h * .15))
-        p.drawLine(QPointF(w * .83, h * .83), QPointF(w * .89, h * .72))
-        p.setPen(QPen(QColor("#e77b69"), max(2, h * .007), Qt.PenStyle.SolidLine,
-                      Qt.PenCapStyle.RoundCap))
-        p.drawLine(QPointF(w * .77, h * .19), QPointF(w * .86, h * .16))
+            if row < active_row or (row == active_row and fraction > 0):
+                completed = row < active_row
+                sweep = 1.0 if completed else fraction
+                ltr = (row + passage) % 2 == 0
+                active_box = QRectF(0 if ltr else w * (1-sweep),
+                                    top, w * sweep, row_height)
+                painter.save()
+                painter.setClipRect(active_box, Qt.ClipOperation.IntersectClip)
+                # The new rake pass replaces the previous traces in its wake.
+                if passage > 0:
+                    painter.fillRect(active_box, QColor("#1b1a18"))
+                self._draw_grooves(painter, w, middle, row_height, passage, row)
+                painter.restore()
 
-        # Hand-composed lettering: stretched, slanted, outlined, layered like
-        # a clean graffiti piece. All geometry remains scalable and local.
-        lettering = self._lettering
-        bounds = self._letter_bounds
-        target_w, target_h = w * .79, h * .37
-        scale = min(target_w / max(bounds.width(), 1),
-                    target_h / max(bounds.height(), 1))
-        # Tilt in the painter keeps letterforms crisp at any size.
-        p.save()
-        p.translate(w * .50, h * .51)
-        p.rotate(-5)
-        p.scale(scale, scale)
-        p.translate(-bounds.center().x(), -bounds.center().y())
+                if not completed:
+                    # Six slim tooth marks follow the leading edge; no literal 3D rake.
+                    edge = w * sweep if ltr else w * (1 - sweep)
+                    tone = self._color(passage)
+                    painter.setPen(QPen(QColor(tone.red(), tone.green(), tone.blue(), 150),
+                                        1.2, Qt.PenStyle.SolidLine,
+                                        Qt.PenCapStyle.RoundCap))
+                    for tooth in range(6):
+                        ty = middle + (tooth - 2.5) * max(3.1, row_height * .092)
+                        painter.drawLine(QPointF(edge, ty - 3.5), QPointF(edge, ty + 3.5))
+            painter.restore()
 
-        def offset_layer(dx, dy, fill, edge=None, thick=0):
-            p.save()
-            p.translate(dx, dy)
-            p.setBrush(QColor(fill))
-            p.setPen(QPen(QColor(edge), thick, Qt.PenStyle.SolidLine,
-                          Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin) if edge
-                     else Qt.PenStyle.NoPen)
-            p.drawPath(lettering)
-            p.restore()
-
-        offset_layer(17, 20, "#05080d", "#05080d", 13)
-        offset_layer(9, 11, "#ee7d66", "#0c1017", 8)
-        offset_layer(-4, -3, "#d8eb76", "#0c1017", 12)
-        offset_layer(0, 0, "#f5f0e4", "#14171c", 6)
-        p.restore()
-
-        # Restrained hand-tag underline; the pulse is aesthetic, not progress.
-        p.setPen(QPen(QColor("#78e0d4"), max(2.4, h * .009),
-                      Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        underline = QPainterPath(QPointF(w * .20, h * .75))
-        underline.cubicTo(QPointF(w * .40, h * (.84 + math.sin(t) * .01)),
-                          QPointF(w * .59, h * .71),
-                          QPointF(w * .81, h * .77))
-        p.drawPath(underline)
-
-        # Always readable, even with reduced motion enabled.
-        p.setFont(QFont("Arial", max(8, int(min(12, h * .034)))))
-        p.setPen(QColor("#a9c0c3"))
-        p.drawText(QRectF(w * .03, h * .88, w * .94, h * .075),
-                   Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                   "FIND YOUR FLOW  /  001")
-        p.end()
+        # A faint horizon line, for depth without photorealistic sand or stones.
+        painter.setPen(QPen(QColor(171, 154, 127, 32), 1))
+        painter.drawLine(QPointF(0, h - pad * .55), QPointF(w, h - pad * .55))
+        painter.end()
