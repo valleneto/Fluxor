@@ -54,9 +54,30 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
         con.executescript(SCHEMA)
         with con:
             con.execute("DELETE FROM files WHERE root=?", (str(root),))
-            for folder, subdirs, names in os.walk(root, followlinks=False):
+            seen_dirs = set()
+            max_depth = 42
+            def on_walk_error(error):
+                # A remote disconnection must not wipe a previously catalogued
+                # root with a silently empty replacement listing.
+                raise OSError(f"Falha ao ler pasta de rede: {error}")
+            for folder, subdirs, names in os.walk(
+                root, topdown=True, followlinks=False, onerror=on_walk_error
+            ):
                 if cancel and cancel():
                     raise InterruptedError("Indexação cancelada; transação revertida.")
+                directory = Path(folder)
+                if len(directory.relative_to(root).parts) > max_depth:
+                    subdirs[:] = []
+                    warnings.append(f"Profundidade excedida, pasta ignorada: {folder}")
+                    continue
+                identity = directory.stat()
+                if identity.st_ino > 0:
+                    key = (identity.st_dev, identity.st_ino)
+                    if key in seen_dirs:
+                        subdirs[:] = []
+                        warnings.append(f"Ciclo de pastas de rede interrompido: {folder}")
+                        continue
+                    seen_dirs.add(key)
                 subdirs[:] = sorted(
                     name for name in subdirs
                     if not (Path(folder) / name).is_symlink()
