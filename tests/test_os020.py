@@ -70,9 +70,14 @@ def main():
             assert partial["total_arquivos"] == 1
             assert any("blocked" in note and "inacessível" in note for note in partial["avisos"])
 
-        # Symlink traversal is prevented; no duplicates from folder cycles.
-        plan = planejar(source, root / "another2", "Por tipo, ano e mês")
+        # Progress heartbeat is an observation, not a fabricated percentage.
+        observations = []
+        plan = planejar(
+            source, root / "another2", "Por tipo, ano e mês",
+            informar=lambda count, folder: observations.append((count, folder)),
+        )
         assert plan["total_arquivos"] == 3
+        assert observations[-1] == (3, "Leitura concluída")
 
     print("OS020 composite type/date layout, merge, integrity, symlink cycle and network errors passed")
 
