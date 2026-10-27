@@ -6,7 +6,8 @@ Data: 27/10/2026. Estado: **PR draft / candidato à homologação visual**.
 Três fotos fornecidas pelo usuário, mostrando Início, Biblioteca e Organizar no MacBook Pro. A referência funcional corresponde à apresentação pré-OS021, com identidade preta/prata/ouro e jardim japonês procedural.
 
 ## Mudanças
-- `fluxor_iniciar.py`, `fluxor_design.py`, `fluxor_brand.py` e `fluxor_mural.py` **não foram alterados** nesta fase; a estrutura de Início, navegação, estilo, logo e animação permanecem.
+- `fluxor_iniciar.py`, `fluxor_design.py` e `fluxor_mural.py` não foram alterados; a estrutura de Início e a animação permanecem.
+- `fluxor_brand.py` foi restaurado **byte a byte da OS019 / PR #6** (SHA de blob `42dffe22dfad10a353c2d602dad7467cfa0580e6`), recuperando o lettering original da versão preferida, em prata/dourado.
 - Biblioteca: linha principal novamente com **+ Adicionar pasta / Busca / Categorias**, sem botão adicional SMB, como fotografado.
 - Organizar: linha principal novamente **Escolher origem / Escolher destino**, sem terceiro botão.
 - Conexão SMB permanece funcional, mas está no navegador de pastas (`SafeFolderPicker`) via **Conectar SMB (Finder)**, junto aos atalhos Início, Downloads e Rede montada.

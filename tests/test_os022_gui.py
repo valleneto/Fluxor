@@ -24,6 +24,8 @@ def main():
         assert win.side_library.text().startswith("02")
         assert win.side_organize.text().startswith("03")
         assert win.wordmark.isVisible()
+        assert hasattr(win.wordmark, "_letters"), "OS019 original glyphs must be restored"
+        assert not hasattr(win.wordmark, "_glyphs"), "OS020 replacement logo still active"
         assert win.zen.ROWS >= 6
 
         win.navigate(1)
