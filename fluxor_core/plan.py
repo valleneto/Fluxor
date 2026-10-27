@@ -5,35 +5,20 @@ from pathlib import Path
 import os
 import shutil
 
-from fluxor_core.classifier import classificar_arquivo, obter_extensao
+from fluxor_core.criteria import (MODOS_LEGADOS, normalizar_modo, categoria_para,
+                                  conferir_politica, registrar_politica)
 from fluxor_core.organizer import validar_pastas
 from fluxor_core.merge import require_safe_target, ensure_no_links, candidates, matching_content, preview_entries
 
-MODOS = ("Por tipo", "Por extensão", "Por ano", "Por ano e mês",
-         "Por tipo e ano", "Por tipo, ano e mês")
+MODOS = MODOS_LEGADOS
 
 
 def _categoria(item, modo):
-    if modo == "Por tipo":
-        return classificar_arquivo(item)
-    if modo == "Por extensão":
-        return obter_extensao(item)
-    # Uses file modification date. Metadata capture date/EXIF is not presumed.
-    data = datetime.fromtimestamp(item.stat().st_mtime)
-    if modo == "Por ano":
-        return str(data.year)
-    if modo == "Por ano e mês":
-        return f"{data.year}/{data.month:02d}"
-    if modo == "Por tipo e ano":
-        return str(Path(classificar_arquivo(item)) / str(data.year))
-    if modo == "Por tipo, ano e mês":
-        return str(Path(classificar_arquivo(item)) / str(data.year) / f"{data.month:02d}")
-    raise ValueError("Modo de organização não reconhecido.")
+    return categoria_para(item, modo)
 
 
 def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False, progresso=None):
-    if modo not in MODOS:
-        raise ValueError("Modo de organizacao invalido.")
+    normalizar_modo(modo)
     if acrescentar:
         require_safe_target(destino)
     elif Path(destino).expanduser().name == "Fluxor_Organizado":
@@ -47,6 +32,9 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         raise ValueError("O destino organizado não pode ser um link simbólico.")
     arquivos = []
     avisos = []
+    bloqueios = []
+    if base.exists() and not conferir_politica(base, modo):
+        avisos.append("Coleção anterior sem registro de critérios: revise a hierarquia antes de acrescentar.")
     # Avoid recursive loops and report network permission/access failures.
     seen_dirs = set()
     max_depth = 42
@@ -63,19 +51,19 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         depth = len(current.relative_to(origem).parts)
         if depth > max_depth:
             subpastas[:] = []
-            avisos.append(f"Profundidade limitada em {max_depth} níveis: {current}")
+            bloqueios.append(f"Profundidade limitada em {max_depth} níveis: {current}")
             continue
         try:
             stat = current.stat()
             identity = (stat.st_dev, stat.st_ino)
         except OSError as error:
             subpastas[:] = []
-            avisos.append(f"Erro ao ler {current}: {error}")
+            bloqueios.append(f"Erro ao ler {current}: {error}")
             continue
         if stat.st_ino > 0:
             if identity in seen_dirs:
                 subpastas[:] = []
-                avisos.append(f"Possível ciclo de pasta/atalho evitado: {current}")
+                bloqueios.append(f"Possível ciclo de pasta/atalho evitado: {current}")
                 continue
             seen_dirs.add(identity)
         subpastas[:] = sorted(
@@ -94,7 +82,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 info = item.stat()
                 tamanho = info.st_size
             except OSError as erro:
-                avisos.append(f"{item}: {erro}")
+                bloqueios.append(f"{item}: {erro}")
                 continue
             arquivos.append({
                 "origem": str(item),
@@ -107,7 +95,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 progresso(len(arquivos), 0)
     resumo_acrescimo = (
         preview_entries(arquivos, base, sha256_arquivo, cancelar)
-        if acrescentar else {"novos": len(arquivos), "ignorados_identicos": 0, "nomes_alternativos": 0}
+        if acrescentar and not bloqueios else {"novos": len(arquivos), "ignorados_identicos": 0, "nomes_alternativos": 0}
     )
     return {
         "origem": str(origem),
@@ -121,6 +109,8 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         "total_arquivos": len(arquivos),
         "tamanho_total": sum(a["tamanho"] for a in arquivos),
         "avisos": avisos,
+        "bloqueios": bloqueios,
+        "completa": not bloqueios,
     }
 
 
@@ -160,6 +150,9 @@ def verificar_espaco(plano):
 
 
 def executar_plano(plano, progresso=None, cancelar=None):
+    if not plano.get("completa", True) or plano.get("bloqueios"):
+        raise ValueError("Prévia incompleta: nenhuma cópia foi autorizada. Corrija os erros e refaça a leitura.")
+    normalizar_modo(plano.get("modo", "Por tipo"))
     acrescentar = bool(plano.get("acrescentar", False))
     if acrescentar:
         require_safe_target(plano["destino"])
@@ -169,6 +162,7 @@ def executar_plano(plano, progresso=None, cancelar=None):
         raise ValueError("Pasta organizada não pode ser um link simbólico.")
     if Path(plano["destino_base"]) != base:
         raise ValueError("Destino mudou desde a prévia; refaça a análise.")
+    conferir_politica(base, plano.get("modo", "Por tipo"))
     verificar_espaco(plano)
     copiados = 0
     ignorados = 0
@@ -287,6 +281,11 @@ def executar_plano(plano, progresso=None, cancelar=None):
                 break
         if progresso:
             progresso(indice, total)
+    if copiados and not cancelado and not erros:
+        try:
+            registrar_politica(base, plano.get("modo", "Por tipo"))
+        except (OSError, ValueError) as exc:
+            erros.append({"origem": "", "erro": f"Não foi possível registrar os critérios: {exc}"})
     return {
         "destino_base": str(base),
         "acrescentar": acrescentar,

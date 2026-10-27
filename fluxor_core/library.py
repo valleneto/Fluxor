@@ -68,15 +68,13 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                 directory = Path(folder)
                 if len(directory.relative_to(root).parts) > max_depth:
                     subdirs[:] = []
-                    warnings.append(f"Profundidade excedida, pasta ignorada: {folder}")
-                    continue
+                    raise OSError(f"Indexação incompleta: profundidade excedida em {folder}")
                 identity = directory.stat()
                 if identity.st_ino > 0:
                     key = (identity.st_dev, identity.st_ino)
                     if key in seen_dirs:
                         subdirs[:] = []
-                        warnings.append(f"Ciclo de pastas de rede interrompido: {folder}")
-                        continue
+                        raise OSError(f"Indexação incompleta: ciclo detectado em {folder}")
                     seen_dirs.add(key)
                 subdirs[:] = sorted(
                     name for name in subdirs
@@ -106,7 +104,7 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                             con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
                             batch.clear()
                     except OSError as error:
-                        warnings.append(f"{item}: {error}")
+                        raise OSError(f"Indexação incompleta; catálogo preservado: {item}: {error}") from error
 
             if batch:
                 con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
