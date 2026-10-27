@@ -3,8 +3,10 @@ import os
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from fluxor_core.plan import MODOS, planejar, executar_plano
-from fluxor_core.library import index_folder
+from types import SimpleNamespace
+from unittest.mock import patch
+from fluxor_core.plan import MODOS, planejar, executar_plano, verificar_espaco
+from fluxor_core.library import index_folder, search_files
 
 
 def set_date(file, year, month):
@@ -72,6 +74,38 @@ def main():
         db = root / "library.db"
         indexed = index_folder(origin, db)
         assert indexed["total"] == 4, indexed
+
+        def disconnected_walk(directory, *args, **kwargs):
+            kwargs["onerror"](OSError("connection interrupted"))
+            return iter(())
+
+        with patch("fluxor_core.plan.os.walk", side_effect=disconnected_walk):
+            try:
+                planejar(origin, root / "disconnect-target", "Por tipo e ano")
+            except OSError as error:
+                assert "rede" in str(error), error
+            else:
+                raise AssertionError("remote disconnect produced an incomplete plan")
+
+        # Existing catalog records survive a failed network re-index transaction.
+        before = search_files(db, limit=100)
+        with patch("fluxor_core.library.os.walk", side_effect=disconnected_walk):
+            try:
+                index_folder(origin, db)
+            except OSError:
+                pass
+            else:
+                raise AssertionError("network failure was silently committed")
+        assert search_files(db, limit=100) == before
+
+        with patch("fluxor_core.plan.os.statvfs",
+                   return_value=SimpleNamespace(f_flag=1)):
+            try:
+                verificar_espaco(plan)
+            except PermissionError as error:
+                assert "somente leitura" in str(error)
+            else:
+                raise AssertionError("read-only destination was accepted")
         assert (origin / "sub" / "movie.mp4").read_bytes() == b"content-movie.mp4"
 
         deep = root / "deep"
