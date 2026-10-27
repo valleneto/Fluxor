@@ -173,12 +173,15 @@ class Inicio(QWidget):
     def navigate(self, target):
         current = self.pages.currentIndex()
         if current == target:
+            # Checkable buttons toggle on click; synchronize even on same page.
+            self.refresh_nav()
             return
         if self.active_operation():
             QMessageBox.information(
                 self, "Operação em andamento",
                 "Espere a operação terminar antes de trocar de tela."
             )
+            self.refresh_nav()
             return
         self.history.append(current)
         self.future.clear()
