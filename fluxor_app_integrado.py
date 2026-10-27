@@ -312,8 +312,26 @@ class FluxorIntegrado(QWidget):
             self.logs.append(f"Tamanho estimado: {resultado['tamanho_total']} bytes")
             self.logs.append(f"Modo: {resultado['modo']}")
             self.logs.append(f"Destino: {resultado['destino_base']}\n")
+            if resultado.get("acrescentar"):
+                resumo = resultado["resumo_acrescimo"]
+                self.logs.append(
+                    f"ACRESCENTAR: {resumo['novos']} novos, "
+                    f"{resumo['ignorados_identicos']} idênticos ignorados, "
+                    f"{resumo['nomes_alternativos']} nomes alternativos."
+                )
+                self.logs.append(
+                    "O acervo anterior permanece intacto. "
+                    "Confira o critério de organização e cada destino previsto."
+                )
             for item in resultado["arquivos"][:150]:
-                self.logs.append(f"{item['origem']} → {item['destino_relativo']}")
+                if resultado.get("acrescentar"):
+                    acao = ("IGNORAR IDÊNTICO" if item.get("acao") == "ignorar_identico"
+                            else "RENOMEAR" if item.get("renomear") else "NOVO")
+                    self.logs.append(
+                        f"[{acao}] {item['origem']} → {item['destino_previsto']}"
+                    )
+                else:
+                    self.logs.append(f"{item['origem']} → {item['destino_relativo']}")
             if resultado["total_arquivos"] > 150:
                 self.logs.append(f"... e mais {resultado['total_arquivos'] - 150} arquivos")
             for aviso in resultado["avisos"]:
@@ -325,6 +343,8 @@ class FluxorIntegrado(QWidget):
             self.plano = None
             self.saida = resultado["destino_base"]
             self.logs.append(f"Copiados: {resultado['total_copiados']}")
+            self.logs.append(f"Idênticos ignorados: {resultado.get('total_ignorados', 0)}")
+            self.logs.append(f"Nomes alternativos: {resultado.get('total_renomeados', 0)}")
             self.logs.append(f"Erros: {resultado['total_erros']}")
             self.logs.append(f"Cancelado: {resultado['cancelado']}")
             self.logs.append(f"Destino: {self.saida}")
