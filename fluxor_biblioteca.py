@@ -1,6 +1,7 @@
 """Fluxor Biblioteca — consulta local, sem copiar ou mover arquivos."""
 import sys
 from pathlib import Path
+from time import perf_counter
 from PySide6.QtGui import QShortcut, QKeySequence
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer
@@ -55,7 +56,10 @@ class IndexWorker(QObject):
     @Slot()
     def run(self):
         try:
-            self.finished.emit(index_folder(self.folder, self.db, cancel=lambda: self.cancel_requested, progress=self.progress.emit))
+            started = perf_counter()
+            result = index_folder(self.folder, self.db, cancel=lambda: self.cancel_requested, progress=self.progress.emit)
+            result["elapsed_s"] = max(0.001, perf_counter() - started)
+            self.finished.emit(result)
         except InterruptedError as error:
             self.cancelled.emit(str(error))
         except Exception as error:
@@ -277,7 +281,9 @@ class Biblioteca(QWidget):
     def indexed(self, folder, result):
         self.last_outcome = "partial" if result["warnings"] else "success"
         self.folder_label.setText(f"Última pasta indexada: {folder}")
-        self.status.setText(f"Indexados nesta pasta: {result['total']} arquivos; {result['size']} bytes")
+        elapsed = result.get("elapsed_s", 0)
+        rate = int(result['total'] / elapsed) if elapsed > 0 else 0
+        self.status.setText(f"Indexados: {result['total']} arquivos em {elapsed:.1f}s  ·  {rate} arquivos/s  ·  {human_size(result['size'])}")
         self.refresh()
 
     def index_cancelled(self, message):
