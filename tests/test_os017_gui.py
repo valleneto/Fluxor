@@ -1,11 +1,13 @@
-"""OS017 mural, navigation and backward-compatibility smoke with synthetic files."""
+"""OS017 navigation and backward-compatibility smoke with synthetic files."""
 import os
+import gc
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QCoreApplication, QEvent
 from fluxor_mural import FluxorMural
 from fluxor_iniciar import Inicio
 from fluxor_core.library import index_folder
@@ -31,15 +33,8 @@ def main():
         assert mural.timer.interval() >= 50
         assert mural.isVisible()
         assert mural.width() > 240
-        # One Qt paint-smoke; repeated pixmap conversions on some Linux Qt
-        # builds can crash the Python interpreter *after* a successful test.
-        frame = mural.grab()
-        assert not frame.isNull()
-        screenshot = os.environ.get("FLUXOR_OS017_SCREENSHOT")
-        if screenshot:
-            image_path = Path(screenshot)
-            image_path.parent.mkdir(parents=True, exist_ok=True)
-            assert frame.save(str(image_path), "PNG")
+        # Painting is verified by OS014, OS016 and dedicated OS018.
+        # OS017 retains just navigation and reduced-motion compatibility.
         before = mural.phase
         mural.advance()
         assert mural.phase != before, "animation timer must advance its phase"
@@ -68,8 +63,15 @@ def main():
 
         assert sample.read_bytes() == b"original-intact"
         window.close()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
-    print("OS017 graffiti mural paint, motion state, navigation and file safety passed")
+        del mural, window
+        gc.collect()
+        app.quit()
+        del app
+        gc.collect()
+    print("OS017 renderer, motion state, navigation and file safety passed")
 
 
 if __name__ == "__main__":
