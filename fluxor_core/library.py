@@ -4,6 +4,7 @@ The database stores metadata and paths, never file contents.
 """
 import os
 import sqlite3
+import stat
 from contextlib import closing
 from pathlib import Path
 
@@ -54,9 +55,28 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
         con.executescript(SCHEMA)
         with con:
             con.execute("DELETE FROM files WHERE root=?", (str(root),))
-            for folder, subdirs, names in os.walk(root, followlinks=False):
+            seen_dirs = set()
+            max_depth = 42
+            def on_walk_error(error):
+                # A remote disconnection must not wipe a previously catalogued
+                # root with a silently empty replacement listing.
+                raise OSError(f"Falha ao ler pasta de rede: {error}")
+            for folder, subdirs, names in os.walk(
+                root, topdown=True, followlinks=False, onerror=on_walk_error
+            ):
                 if cancel and cancel():
                     raise InterruptedError("Indexação cancelada; transação revertida.")
+                directory = Path(folder)
+                if len(directory.relative_to(root).parts) > max_depth:
+                    subdirs[:] = []
+                    raise OSError(f"Indexação incompleta: profundidade excedida em {folder}")
+                identity = directory.stat()
+                if identity.st_ino > 0:
+                    key = (identity.st_dev, identity.st_ino)
+                    if key in seen_dirs:
+                        subdirs[:] = []
+                        raise OSError(f"Indexação incompleta: ciclo detectado em {folder}")
+                    seen_dirs.add(key)
                 subdirs[:] = sorted(
                     name for name in subdirs
                     if not (Path(folder) / name).is_symlink()
@@ -66,10 +86,12 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                     if cancel and cancel():
                         raise InterruptedError("Indexação cancelada; transação revertida.")
                     item = Path(folder) / name
-                    if item.is_symlink() or not item.is_file():
+                    if item.is_symlink():
                         continue
                     try:
                         info = item.stat()
+                        if not stat.S_ISREG(info.st_mode):
+                            continue
                         relative = item.relative_to(root)
                         record = (
                             str(item), str(root), item.name,
@@ -85,7 +107,7 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                             con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
                             batch.clear()
                     except OSError as error:
-                        warnings.append(f"{item}: {error}")
+                        raise OSError(f"Indexação incompleta; catálogo preservado: {item}: {error}") from error
 
             if batch:
                 con.executemany('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)', batch)
