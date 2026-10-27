@@ -40,6 +40,8 @@ class ZenCore(QWidget):
         if state not in ("idle", "scanning", "organizing", "complete", "error"):
             raise ValueError("Unknown FLUXOR visual state")
         self.state = state
+        # Lower idle repaint frequency on older MacBooks.
+        self.timer.setInterval(100 if state == "idle" else 50)
         self.update()
 
     def set_reduced_motion(self, enabled):
