@@ -37,6 +37,11 @@ def suggest_project(relative_path):
     return parent.parts[0]
 
 
+def _abort_unreadable_folder(error):
+    """Never commit a partial catalog after a directory or network read failure."""
+    raise error
+
+
 def index_folder(root, database_path, recursive=True, cancel=None, progress=None):
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
@@ -54,7 +59,7 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
         con.executescript(SCHEMA)
         with con:
             con.execute("DELETE FROM files WHERE root=?", (str(root),))
-            for folder, subdirs, names in os.walk(root, followlinks=False):
+            for folder, subdirs, names in os.walk(root, followlinks=False, onerror=_abort_unreadable_folder):
                 if cancel and cancel():
                     raise InterruptedError("Indexação cancelada; transação revertida.")
                 subdirs[:] = sorted(
