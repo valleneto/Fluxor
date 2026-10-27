@@ -92,14 +92,4 @@ jobs:
       - name: OS018 Japanese sand-flow screensaver and two-tone logo
         env:
           QT_QPA_PLATFORM: offscreen
-          FLUXOR_OS018_SCREENSHOT: artifacts/fluxor-os018-home.png
         run: python -m tests.test_os018_gui
-
-      - name: Attach actual OS018 home screenshot
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: fluxor-os018-home-preview
-          path: artifacts/fluxor-os018-home.png
-          if-no-files-found: ignore
-          retention-days: 7
