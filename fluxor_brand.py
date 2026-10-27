@@ -4,7 +4,7 @@ Brushed silver and muted gold, entirely vector drawn. No stock fonts bundled,
 external image, square badge, crown, fluorescent colors or third-party assets.
 """
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
 
@@ -71,3 +71,22 @@ class FluxorWordmark(QWidget):
         p.drawLine(QPointF(w * .77, h * .16), QPointF(w * .82, h * .11))
         p.drawLine(QPointF(w * .81, h * .20), QPointF(w * .87, h * .14))
         p.end()
+
+def fluxor_app_icon():
+    """Transparent F insignia; no old square photograph or colored badge."""
+    pixmap = QPixmap(64, 64)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pixmap)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    font = QFont("Arial Black")
+    font.setBold(True)
+    font.setItalic(True)
+    font.setPixelSize(48)
+    p.setFont(font)
+    p.setPen(QColor("#d3d4d1"))
+    p.drawText(QRectF(4, 2, 50, 56), Qt.AlignmentFlag.AlignCenter, "F")
+    p.setPen(QPen(QColor("#ad9263"), 4.0, Qt.PenStyle.SolidLine,
+                  Qt.PenCapStyle.RoundCap))
+    p.drawLine(QPointF(29, 55), QPointF(57, 19))
+    p.end()
+    return QIcon(pixmap)
