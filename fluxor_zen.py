@@ -1,22 +1,30 @@
-"""Fluxor Zen Core — lightweight QPainter animation, no media/assets or external libraries."""
+"""FLUXOR Zen Core — original low-cost, procedural, responsive motion.
+
+The generative field communicates activity, never a fake progress percentage.
+No photography, video, 3D, particles, online assets or heavy libraries.
+"""
 import math
+
 from PySide6.QtCore import Qt, QTimer, QRectF
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
 
 def phase_for_state(state):
-    return {"idle": 0.22, "scanning": 0.85, "organizing": 1.15, "complete": 0.0, "error": 0.0}.get(state, 0.22)
+    """Degrees advanced per 50ms, kept low for calm interface motion."""
+    return {"idle": 0.18, "scanning": 0.72, "organizing": 0.95,
+            "complete": 0.0, "error": 0.0}.get(state, 0.18)
 
 
 class ZenCore(QWidget):
-    """Calm procedural sand-like rings; repaint at most 20 fps while visible."""
+    """Sparse, animated flow contours in a circular field. At most 20 FPS."""
     def __init__(self, parent=None, compact=False):
         super().__init__(parent)
         self.state = "idle"
         self.phase = 0.0
         self.reduced_motion = False
-        self.setMinimumSize(100, 100) if compact else self.setMinimumSize(260, 240)
+        self.compact = compact
+        self.setMinimumSize(100, 100) if compact else self.setMinimumSize(240, 180)
         self.timer = QTimer(self)
         self.timer.setInterval(50)
         self.timer.timeout.connect(self.advance)
@@ -51,26 +59,49 @@ class ZenCore(QWidget):
             self.update()
 
     def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, h = self.width(), self.height()
-        cx, cy = w / 2, h / 2
-        outer = max(30.0, min(w * 0.43, h * 0.44))
-        p.fillRect(self.rect(), QColor("#121f2c"))
-        # Static rake lines: deliberately low visual contrast and no per-pixel effects.
-        for i in range(8):
-            radius = outer * (0.28 + i * 0.085)
-            a = 30 + int(22 * (1 - i / 9))
-            p.setPen(QPen(QColor(115, 181, 190, a), 1.25))
-            p.drawEllipse(QRectF(cx-radius, cy-radius, 2*radius, 2*radius))
-        p.setPen(QPen(QColor("#4f8790"), 1.5))
-        p.drawEllipse(QRectF(cx-outer*.17, cy-outer*.17, outer*.34, outer*.34))
-        # Slow traveling trace, representing work without claiming measurable progress.
-        angle = math.radians(self.phase - 90)
-        radius = outer * .72
-        x = cx + radius * math.cos(angle)
-        y = cy + radius * math.sin(angle)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#e5b57b") if self.state == "error" else QColor("#90dce1"))
-        p.drawEllipse(QRectF(x-3.5, y-3.5, 7, 7))
-        p.end()
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        width, height = self.width(), self.height()
+        cx, cy = width * 0.5, height * 0.5
+        size = max(26.0, min(width * 0.41, height * 0.42))
+        painter.fillRect(self.rect(), QColor("#131e2a"))
+        phase = math.radians(self.phase)
+        active = self.state in ("scanning", "organizing")
+        frozen = self.state in ("complete", "error")
+        color = QColor("#dfb38f") if self.state == "error" else QColor("#a9dfe6")
+        # Breathing contours: 5 simple closed vector curves, no particle effects.
+        for band in range(5):
+            radius = size * (0.25 + 0.13 * band)
+            wave = size * 0.018 * (1 + int(active))
+            path = QPainterPath()
+            segments = 72 if not self.compact else 40
+            for point in range(segments + 1):
+                angle = (2.0 * math.pi * point) / segments
+                ripple = wave * math.sin(angle * 3.0 + phase * 1.2 + band * 0.64)
+                drift = size * 0.013 * math.cos(angle * 2 - phase + band * 0.5)
+                rr = radius + ripple + drift
+                px = cx + math.cos(angle) * rr
+                py = cy + math.sin(angle) * rr * 0.83
+                if point == 0:
+                    path.moveTo(px, py)
+                else:
+                    path.lineTo(px, py)
+            alpha = int(52 + band * 20)
+            painter.setPen(QPen(QColor(color.red(), color.green(), color.blue(), alpha),
+                                1.1 if self.compact else 1.45))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(path)
+
+        # One orbit accent: signal of activity, deliberately not progress.
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        orbit_angle = phase - math.pi / 2
+        orbit_radius = size * 0.77
+        dot = 2.3 if self.compact else 3.0
+        painter.setOpacity(0.6 if frozen else 0.88)
+        painter.drawEllipse(QRectF(
+            cx + math.cos(orbit_angle) * orbit_radius - dot,
+            cy + math.sin(orbit_angle) * orbit_radius * 0.83 - dot,
+            2 * dot, 2 * dot
+        ))
+        painter.end()
