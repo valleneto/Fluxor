@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget, QStyle, QSplitter, QDialog, QDialogButtonBox,
 )
 from fluxor_core.library import index_folder, search_files, catalog_summary, storage_diagnosis
+from fluxor_network import select_network_folder, connect_smb
 from fluxor_core.duplicates import find_exact_duplicates
 from fluxor_core.intelligence import radar_report, version_candidates
 from fluxor_media import MediaPreview
@@ -127,6 +128,15 @@ class Biblioteca(QWidget):
         controls.addWidget(self.search)
         controls.addWidget(self.category)
         root.addLayout(controls)
+        network_actions = QHBoxLayout()
+        self.network_button = QPushButton("Pasta da rede / volume montado")
+        self.network_button.clicked.connect(self.choose_network_folder)
+        self.connect_button = QPushButton("Conectar servidor SMB")
+        self.connect_button.clicked.connect(lambda: connect_smb(self))
+        network_actions.addWidget(self.network_button)
+        network_actions.addWidget(self.connect_button)
+        network_actions.addStretch()
+        root.addLayout(network_actions)
         tools = QHBoxLayout()
         self.size_filter = QComboBox()
         self.size_filter.addItems(["Qualquer tamanho", "Acima de 10 MB", "Acima de 100 MB", "Acima de 1 GB"])
@@ -233,8 +243,16 @@ class Biblioteca(QWidget):
 
     def choose_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Escolher pasta para Biblioteca")
+        self.index_selected_folder(folder)
+
+    def choose_network_folder(self):
+        folder = select_network_folder(self, "Escolher pasta de rede já montada")
+        self.index_selected_folder(folder)
+
+    def index_selected_folder(self, folder):
         if not folder:
             return
+        self.network_button.setEnabled(False)
         self.index_button.setEnabled(False)
         self.analysis_button.setEnabled(False)
         self.duplicates_button.setEnabled(False)
@@ -275,6 +293,7 @@ class Biblioteca(QWidget):
         self.thread = None
         self.worker = None
         self.index_button.setEnabled(True)
+        self.network_button.setEnabled(True)
         self.analysis_button.setEnabled(True)
         self.duplicates_button.setEnabled(True)
         self.versions_button.setEnabled(True)
