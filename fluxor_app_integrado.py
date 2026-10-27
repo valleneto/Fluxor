@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from fluxor_core.plan import MODOS, planejar, executar_plano
+from fluxor_folder_picker import SafeFolderPicker
 
 
 class Tarefa(QObject):
@@ -35,7 +36,12 @@ class Tarefa(QObject):
     def executar(self):
         try:
             if self.tipo == "preview":
-                dados = planejar(self.origem, self.destino, self.modo, self.recursivo, cancelar=lambda: self.cancelado, acrescentar=self.acrescentar)
+                dados = planejar(
+                    self.origem, self.destino, self.modo, self.recursivo,
+                    cancelar=lambda: self.cancelado,
+                    acrescentar=self.acrescentar,
+                    progresso=self.progresso.emit,
+                )
             else:
                 dados = executar_plano(
                     self.plano, progresso=self.progresso.emit,
@@ -150,6 +156,11 @@ class FluxorIntegrado(QWidget):
         self.modo = QComboBox()
         self.modo.addItems(MODOS)
         self.modo.currentTextChanged.connect(self.invalidar_previa)
+        self.modo.setToolTip(
+            "A data é a última modificação do arquivo, não necessariamente "
+            "a data original da foto ou da filmagem. "
+            "Tipo e data cria Imagens/2026/10 e Videos/2026/10."
+        )
         self.recursivo = QCheckBox("Incluir subpastas")
         self.recursivo.setChecked(True)
         self.recursivo.toggled.connect(self.invalidar_previa)
@@ -226,7 +237,10 @@ class FluxorIntegrado(QWidget):
         self.atualizar_botoes()
 
     def escolher_origem(self):
-        pasta = QFileDialog.getExistingDirectory(self, "Escolher origem")
+        pasta = SafeFolderPicker.get_directory(
+            self, "Escolher pasta de origem (inclusive rede montada)",
+            initial=self.origem or str(Path.home()),
+        )
         if pasta:
             self.origem = pasta
             self.origem_label.setText(f"Origem: {pasta}")
@@ -234,9 +248,11 @@ class FluxorIntegrado(QWidget):
 
     def escolher_destino(self):
         merge = self.destino_tipo.currentIndex() == 1
-        pasta = QFileDialog.getExistingDirectory(
-            self, "Selecionar Fluxor_Organizado existente" if merge
-            else "Escolher pasta de destino"
+        pasta = SafeFolderPicker.get_directory(
+            self,
+            "Selecionar Fluxor_Organizado existente" if merge
+            else "Escolher pasta de destino",
+            initial=self.destino or str(Path.home()),
         )
         if pasta:
             if not merge and Path(pasta).name == "Fluxor_Organizado":
@@ -281,8 +297,12 @@ class FluxorIntegrado(QWidget):
         self.logs.clear()
         self.started_at = time.monotonic()
         self.eta.setText("Estimativa: calculando apenas durante a cópia." if tipo == "organizar" else "Prévia: tempo variável conforme o acervo.")
+        self.barra.setRange(0, 0 if tipo == "preview" else 100)
         self.barra.setValue(0)
-        self.status.setText("Analisando..." if tipo == "preview" else "Copiando arquivos...")
+        self.status.setText(
+            "Lendo pastas e arquivos em segundo plano. Em rede, a resposta pode demorar..."
+            if tipo == "preview" else "Copiando arquivos..."
+        )
         self.thread = QThread(self)
         self.worker = Tarefa(
             tipo, self.origem, self.destino,
@@ -302,7 +322,14 @@ class FluxorIntegrado(QWidget):
         self.thread.start()
 
     def progresso(self, atual, total):
-        self.barra.setValue(round(atual * 100 / total) if total else 100)
+        if total == 0:
+            self.status.setText(
+                f"Encontrados {atual} arquivos. Leitura em andamento; "
+                "nenhum arquivo foi copiado."
+            )
+            return
+        self.barra.setRange(0, 100)
+        self.barra.setValue(round(atual * 100 / total))
         self.status.setText(f"Processados {atual}/{total}")
         if self.started_at is not None and 3 <= atual < total:
             elapsed = max(0, time.monotonic() - self.started_at)
@@ -343,6 +370,7 @@ class FluxorIntegrado(QWidget):
                 self.logs.append(f"... e mais {resultado['total_arquivos'] - 150} arquivos")
             for aviso in resultado["avisos"]:
                 self.logs.append(f"AVISO: {aviso}")
+            self.barra.setRange(0, 100)
             self.barra.setValue(100)
             self.status.setText("Prévia concluída. Confira a lista antes de organizar.")
             self.eta.setText("Prévia concluída. A duração da cópia dependerá dos arquivos e do disco.")
@@ -372,6 +400,8 @@ class FluxorIntegrado(QWidget):
     def falha(self, mensagem):
         self.last_outcome = "cancelled" if mensagem.startswith("Operação cancelada") else "error"
         self.plano = None
+        self.barra.setRange(0, 100)
+        self.barra.setValue(0)
         self.status.setText("Falha na operação.")
         self.eta.setText("Tempo indisponível após falha.")
         self.logs.append(f"ERRO: {mensagem}")
