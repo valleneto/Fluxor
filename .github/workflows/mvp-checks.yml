@@ -96,3 +96,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m tests.test_os018_gui
+
+      - name: OS019 append-existing Qt UI controls
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m tests.test_os019_gui
