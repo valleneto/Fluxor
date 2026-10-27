@@ -41,7 +41,7 @@ A transferência de um arquivo do Samsung via SFTP do Mac Mini ao MacBook Pro fo
 ## Testes
 
 - `tests/test_os020.py`: pastas por tipo+ano/mês, hashes das cópias, funcionamento com importação incremental, ciclo simbólico e warnings de pasta inacessível, heartbeat da contagem.
-- `tests/test_os020_gui.py`: seleção de modos, configuração do seletor não-nativo sem seguir links via stub (a instanciação de QFileDialog no runner Linux offscreen apresentou crash nativo Qt), aceitação de `~/` e caminho absoluto, invalidação de prévia ao trocar origem.
+- `tests/test_os020_gui.py`: contrato do controlador de origem e configuração do seletor não-nativo via *stub*, abrangendo `~/`, caminho absoluto e opções de não seguir links. **Não instancia uma janela Qt nessa regressão nova** porque o runner Linux offscreen apresentou falha de finalização de objetos Qt após as asserções. Os testes gráficos reais das versões OS014–OS019 continuam ativos na suíte; a interação do novo seletor precisa ser verificada no macOS.
 - Regressões OS014–OS019, classificação, leitura, segurança e rollback.
 - A navegação real de Finder/volumes no macOS Catalina **ainda exige validação pelo usuário**.
 
