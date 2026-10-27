@@ -84,20 +84,10 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -m tests.test_os016_gui
 
-      - name: OS017 street mural and navigation GUI regression
+      - name: OS017 legacy navigation and motion regression
         env:
           QT_QPA_PLATFORM: offscreen
-          FLUXOR_OS017_SCREENSHOT: artifacts/fluxor-os017-mural.png
         run: python -m tests.test_os017_gui
-
-      - name: Preserve OS017 Qt-rendered mural preview
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: fluxor-os017-mural-preview
-          path: artifacts/fluxor-os017-mural.png
-          if-no-files-found: ignore
-          retention-days: 7
 
       - name: OS018 Japanese sand-flow screensaver and two-tone logo
         env:
