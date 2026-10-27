@@ -14,6 +14,7 @@ from fluxor_core.duplicates import find_exact_duplicates
 from fluxor_core.intelligence import radar_report, version_candidates
 from fluxor_media import MediaPreview
 from fluxor_folder_picker import SafeFolderPicker
+from fluxor_network import connect_smb
 from fluxor_core.workspace import review_add, review_list, collection_add, collection_list
 
 
@@ -118,6 +119,9 @@ class Biblioteca(QWidget):
         self.index_button = QPushButton("+  Adicionar pasta")
         self.index_button.setObjectName("primaryAction")
         self.index_button.clicked.connect(self.choose_folder)
+        self.smb_button = QPushButton("SMB (Finder)")
+        self.smb_button.setToolTip("Solicitar montagem SMB via Finder; após conectar, selecione /Volumes.")
+        self.smb_button.clicked.connect(lambda: connect_smb(self))
         self.search = QLineEdit()
         self.search.setPlaceholderText("Buscar por nome…")
         self.search_timer = QTimer(self)
@@ -132,6 +136,7 @@ class Biblioteca(QWidget):
         self.category.addItem("Todas as categorias")
         self.category.currentTextChanged.connect(self.refresh)
         controls.addWidget(self.index_button)
+        controls.addWidget(self.smb_button)
         controls.addWidget(self.search)
         controls.addWidget(self.category)
         root.addLayout(controls)

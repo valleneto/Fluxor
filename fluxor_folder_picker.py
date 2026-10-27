@@ -6,6 +6,7 @@ SMB/AFP-mounted volumes appear under /Volumes. It does not mount SFTP URLs.
 """
 import os
 import threading
+import heapq
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
@@ -32,6 +33,7 @@ class SafeFolderPicker(QDialog):
         self.selected_path = ""
         self._path = ""
         self._offset = 0
+        self._cursor = None
         self._ticket = 0
         self._busy = False
         self._loading_select = False
@@ -105,10 +107,21 @@ class SafeFolderPicker(QDialog):
 
     def _go_address(self):
         typed = self.address.text().strip()
-        if typed.startswith(("sftp://", "smb://", "afp://")):
+        if typed.lower().startswith(("sftp://", "ssh://", "smb://", "afp://")):
+            # Invalidate a previous valid folder; a wrong address must NEVER
+            # leave the former selection silently active.
+            self._ticket += 1
+            self._timeout.stop()
+            self._busy = False
+            self._path = ""
+            self.selected_path = ""
+            self._cursor = None
+            self.folders.clear()
+            self.more_button.setVisible(False)
+            self._set_enabled()
             self.status.setText(
                 "Este navegador usa pastas montadas pelo macOS, não URLs. "
-                "Monte o compartilhamento e abra a pasta em /Volumes."
+                "Conecte SMB pelo Finder e selecione a pasta em /Volumes."
             )
             return
         if typed:
@@ -117,7 +130,10 @@ class SafeFolderPicker(QDialog):
     def _start(self, requested, offset=0, select=False):
         self._ticket += 1
         token = self._ticket
+        cursor = self._cursor if offset and requested == self._path else None
         self._offset = offset
+        if cursor is None:
+            self._cursor = None
         self._busy = True
         self._loading_select = select
         self._set_enabled()
@@ -125,12 +141,12 @@ class SafeFolderPicker(QDialog):
         self._timeout.start()
         job = threading.Thread(
             target=self._scan,
-            args=(token, requested, offset, select),
+            args=(token, requested, cursor, select),
             daemon=True, name="fluxor-folder-picker",
         )
         job.start()
 
-    def _scan(self, token, requested, offset, select):
+    def _scan(self, token, requested, cursor, select):
         """Filesystem calls never run in the Qt main GUI thread."""
         try:
             path = Path(requested).expanduser()
@@ -148,23 +164,24 @@ class SafeFolderPicker(QDialog):
             if select:
                 self._results.ready.emit(token, canonical, [], False, "", True)
                 return
-            items = []
-            skipped_dirs = 0
-            has_more = False
-            # Avoid sorting an entire large or remote directory and never list files.
-            with os.scandir(path) as entries:
-                for item in entries:
-                    if token != self._ticket:
-                        return
-                    if item.is_symlink() or not item.is_dir(follow_symlinks=False):
-                        continue
-                    if skipped_dirs < offset:
-                        skipped_dirs += 1
-                        continue
-                    if len(items) == PAGE:
-                        has_more = True
-                        break
-                    items.append((item.name, item.path))
+            # Keyset paging: no repeated/omitted entries due to unstable
+            # os.scandir ordering. Bound memory to PAGE+1 while scanning.
+            def folders_after_cursor():
+                with os.scandir(path) as entries:
+                    for item in entries:
+                        if token != self._ticket:
+                            return
+                        if item.is_symlink() or not item.is_dir(follow_symlinks=False):
+                            continue
+                        name = item.name
+                        key = (name.casefold(), name)
+                        if cursor is None or key > cursor:
+                            yield (key, name, item.path)
+            page = heapq.nsmallest(PAGE + 1, folders_after_cursor(),
+                                    key=lambda value: value[0])
+            has_more = len(page) > PAGE
+            items = [(name, absolute) for _, name, absolute in page[:PAGE]]
+
             self._results.ready.emit(token, canonical, items, has_more, "", False)
         except (OSError, ValueError) as exc:
             self._results.ready.emit(token, requested, [], False, str(exc), select)
@@ -178,6 +195,7 @@ class SafeFolderPicker(QDialog):
             # Prevent accidentally selecting the PREVIOUS folder after a failed
             # network jump or a refused symlink.
             self._path = ""
+            self._cursor = None
             self.folders.clear()
             self.more_button.setVisible(False)
             self._set_enabled()
@@ -195,11 +213,15 @@ class SafeFolderPicker(QDialog):
             item = QListWidgetItem("  " + name)
             item.setData(Qt.ItemDataRole.UserRole, absolute)
             self.folders.addItem(item)
+        if entries:
+            last_name = entries[-1][0]
+            self._cursor = (last_name.casefold(), last_name)
         self.more_button.setVisible(has_more)
         self._set_enabled()
         self.status.setText(
-            f"{self.folders.count()} pastas exibidas. "
-            "Dê dois cliques para entrar; 'Selecionar esta pasta' confirma."
+            f"{self.folders.count()} pastas exibidas em ordem alfabética. "
+            "A pasta pode mudar na rede; recarregue para conferir alterações. "
+            "Dê dois cliques para entrar ou escolha esta pasta."
         )
 
     def _set_enabled(self):
