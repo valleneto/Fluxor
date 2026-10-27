@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Syntax check
-        run: python -m compileall -q fluxor_core tests fluxor_app_integrado.py fluxor_biblioteca.py fluxor_iniciar.py fluxor_mvp_v2.py fluxor_media.py fluxor_zen.py
+        run: python -m compileall -q fluxor_core tests fluxor_app_integrado.py fluxor_biblioteca.py fluxor_iniciar.py fluxor_mvp_v2.py fluxor_media.py fluxor_zen.py fluxor_design.py
       - name: Classifier
         run: python -m tests.test_classifier
       - name: Organizer in temporary directory
@@ -78,3 +78,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m tests.test_os015_gui
+
+      - name: OS016 premium layout and motion smoke
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m tests.test_os016_gui
