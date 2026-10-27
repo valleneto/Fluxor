@@ -16,6 +16,7 @@ from fluxor_core.plan import MODOS, planejar, executar_plano
 
 class Tarefa(QObject):
     progresso = Signal(int, int)
+    varredura = Signal(int, str)
     pronto = Signal(dict)
     falha = Signal(str)
     finalizado = Signal()
@@ -35,7 +36,11 @@ class Tarefa(QObject):
     def executar(self):
         try:
             if self.tipo == "preview":
-                dados = planejar(self.origem, self.destino, self.modo, self.recursivo, cancelar=lambda: self.cancelado, acrescentar=self.acrescentar)
+                dados = planejar(
+                    self.origem, self.destino, self.modo, self.recursivo,
+                    cancelar=lambda: self.cancelado, acrescentar=self.acrescentar,
+                    informar=self.varredura.emit,
+                )
             else:
                 dados = executar_plano(
                     self.plano, progresso=self.progresso.emit,
@@ -354,6 +359,7 @@ class FluxorIntegrado(QWidget):
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.executar)
         self.worker.progresso.connect(self.progresso)
+        self.worker.varredura.connect(self.atualizar_varredura)
         self.worker.pronto.connect(self.pronto)
         self.worker.falha.connect(self.falha)
         self.worker.finalizado.connect(self.thread.quit)
@@ -362,6 +368,12 @@ class FluxorIntegrado(QWidget):
         self.thread.finished.connect(self.liberar)
         self.atualizar_botoes()
         self.thread.start()
+
+    def atualizar_varredura(self, quantidade, pasta):
+        if self.tarefa == "preview":
+            self.status.setText(
+                f"Lendo origem: {quantidade} arquivos encontrados · {pasta}"
+            )
 
     def progresso(self, atual, total):
         self.barra.setValue(round(atual * 100 / total) if total else 100)
