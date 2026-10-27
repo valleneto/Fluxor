@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
 
 from fluxor_core.plan import MODOS, planejar, executar_plano
 from fluxor_folder_picker import SafeFolderPicker
-from fluxor_network import connect_smb
 
 
 class Tarefa(QObject):
@@ -128,17 +127,10 @@ class FluxorIntegrado(QWidget):
         pasta_botoes = QHBoxLayout()
         self.b_origem = QPushButton("Escolher origem")
         self.b_destino = QPushButton("Escolher destino")
-        self.b_conectar_smb = QPushButton("Conectar SMB (Finder)")
-        self.b_conectar_smb.setToolTip(
-            "Solicita ao Finder abrir o compartilhamento SMB. "
-            "Depois selecione a pasta montada em /Volumes; não guarda senhas."
-        )
-        self.b_conectar_smb.clicked.connect(lambda: connect_smb(self))
         self.b_origem.clicked.connect(self.escolher_origem)
         self.b_destino.clicked.connect(self.escolher_destino)
         pasta_botoes.addWidget(self.b_origem)
         pasta_botoes.addWidget(self.b_destino)
-        pasta_botoes.addWidget(self.b_conectar_smb)
         acervo_layout.addWidget(self.origem_label)
         acervo_layout.addWidget(self.destino_label)
         acervo_layout.addLayout(pasta_botoes)
@@ -318,7 +310,7 @@ class FluxorIntegrado(QWidget):
 
     def atualizar_botoes(self):
         ativo = self.thread is not None
-        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo, self.destino_tipo, self.b_conectar_smb, *self.criterios):
+        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo, self.destino_tipo, *self.criterios):
             b.setEnabled(not ativo)
         self.b_organizar.setEnabled(not ativo and self.plano is not None and self.plano.get("completa", True))
         self.b_cancelar.setEnabled(ativo)

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QPushButton, QMessageBox,
 )
+from fluxor_network import connect_smb
 
 PAGE = 140
 
@@ -66,6 +67,14 @@ class SafeFolderPicker(QDialog):
             button = QPushButton(title_text)
             button.clicked.connect(lambda _, value=path: self._start(value))
             shortcuts.addWidget(button)
+        # Preserve the two-button organization screen and simple library toolbar.
+        # Network connection lives here, at the point where folders are chosen.
+        self.network_button = QPushButton("Conectar SMB (Finder)")
+        self.network_button.setToolTip(
+            "Solicita a montagem no Finder. Depois escolha a pasta em /Volumes."
+        )
+        self.network_button.clicked.connect(lambda: connect_smb(self))
+        shortcuts.addWidget(self.network_button)
         root.addLayout(shortcuts)
 
         self.folders = QListWidget()
