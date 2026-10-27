@@ -172,13 +172,10 @@ class Biblioteca(QWidget):
         review_actions.addStretch()
         advanced_layout.addLayout(review_actions)
 
-        advanced = QHBoxLayout()
         self.cancel_button = QPushButton("Interromper análise")
         self.cancel_button.setEnabled(False)
+        self.cancel_button.setVisible(False)
         self.cancel_button.clicked.connect(self.cancel_scan)
-        advanced.addWidget(self.cancel_button)
-        advanced.addStretch()
-        advanced_layout.addLayout(advanced)
         self.report = QTextEdit()
         self.report.setReadOnly(True)
         self.report.setMaximumHeight(100)
@@ -194,7 +191,10 @@ class Biblioteca(QWidget):
         )
         self.status = QLabel("Biblioteca local. Nenhum arquivo será copiado.")
         self.status.setWordWrap(True)
-        root.addWidget(self.status)
+        status_bar = QHBoxLayout()
+        status_bar.addWidget(self.status, 1)
+        status_bar.addWidget(self.cancel_button)
+        root.addLayout(status_bar)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["Nome", "Categoria", "Projeto sugerido", "Tamanho", "Modificado", "Caminho original"])
         header = self.table.horizontalHeader()
@@ -259,6 +259,7 @@ class Biblioteca(QWidget):
         self.duplicates_button.setEnabled(False)
         self.versions_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
+        self.cancel_button.setVisible(True)
         self.last_outcome = "running"
         self.status.setText("Indexando metadados em segundo plano...")
         self.thread = QThread(self)
@@ -298,6 +299,7 @@ class Biblioteca(QWidget):
         self.duplicates_button.setEnabled(True)
         self.versions_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
+        self.cancel_button.setVisible(False)
 
     def sort_by_column(self, column):
         choices = {0: "name", 1: "category", 2: "project", 3: "size", 4: "modified"}
@@ -516,6 +518,7 @@ class Biblioteca(QWidget):
         self.analysis_button.setEnabled(False)
         self.duplicates_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
+        self.cancel_button.setVisible(True)
         self.thread = QThread(self)
         self.worker = DuplicateWorker(str(self.db))
         self.worker.moveToThread(self.thread)
