@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget, QStyle, QSplitter, QDialog, QDialogButtonBox,
+    QVBoxLayout, QWidget, QComboBox, QHeaderView, QTextEdit, QListWidget, QListWidgetItem, QStackedWidget, QStyle, QSplitter, QDialog, QDialogButtonBox, QAbstractItemView,
 )
 from fluxor_core.library import index_folder, search_files, catalog_summary, storage_diagnosis
 from fluxor_core.duplicates import find_exact_duplicates
@@ -106,6 +106,7 @@ class Biblioteca(QWidget):
         title.setStyleSheet("font-size: 23px; font-weight: 700; color: #eaf6fa;")
         root.addWidget(title)
         self.folder_label = QLabel("Adicione uma pasta para descobrir seus arquivos. Nada será movido.")
+        self.folder_label.setWordWrap(True)
         root.addWidget(self.folder_label)
         controls = QHBoxLayout()
         self.index_button = QPushButton("Adicionar / atualizar pasta")
@@ -151,18 +152,25 @@ class Biblioteca(QWidget):
         tools.addWidget(self.size_filter)
         tools.addWidget(self.project_filter)
         root.addLayout(tools)
+        self.advanced_toggle = QPushButton("Ferramentas e diagnósticos  ▾")
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setToolTip("Mostrar ou ocultar ferramentas secundárias")
+        root.addWidget(self.advanced_toggle)
+        self.advanced_panel = QWidget()
+        advanced_layout = QVBoxLayout(self.advanced_panel)
+        advanced_layout.setContentsMargins(0, 0, 0, 0)
 
         analysis_actions = QHBoxLayout()
         for button in (self.analysis_button, self.versions_button, self.duplicates_button):
             analysis_actions.addWidget(button)
         analysis_actions.addStretch()
-        root.addLayout(analysis_actions)
+        advanced_layout.addLayout(analysis_actions)
 
         review_actions = QHBoxLayout()
         for button in (self.review_button, self.review_list_button, self.collection_button):
             review_actions.addWidget(button)
         review_actions.addStretch()
-        root.addLayout(review_actions)
+        advanced_layout.addLayout(review_actions)
 
         advanced = QHBoxLayout()
         self.cancel_button = QPushButton("Interromper análise")
@@ -170,13 +178,22 @@ class Biblioteca(QWidget):
         self.cancel_button.clicked.connect(self.cancel_scan)
         advanced.addWidget(self.cancel_button)
         advanced.addStretch()
-        root.addLayout(advanced)
+        advanced_layout.addLayout(advanced)
         self.report = QTextEdit()
         self.report.setReadOnly(True)
         self.report.setMaximumHeight(100)
         self.report.setPlaceholderText("Radar, versões e lista de revisão aparecerão aqui.")
-        root.addWidget(self.report)
+        advanced_layout.addWidget(self.report)
+        root.addWidget(self.advanced_panel)
+        self.advanced_panel.setVisible(False)
+        self.advanced_toggle.toggled.connect(self.advanced_panel.setVisible)
+        self.advanced_toggle.toggled.connect(
+            lambda open_: self.advanced_toggle.setText(
+                "Ocultar ferramentas  ▴" if open_ else "Ferramentas e diagnósticos  ▾"
+            )
+        )
         self.status = QLabel("Biblioteca local. Nenhum arquivo será copiado.")
+        self.status.setWordWrap(True)
         root.addWidget(self.status)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["Nome", "Categoria", "Projeto sugerido", "Tamanho", "Modificado", "Caminho original"])
@@ -188,6 +205,8 @@ class Biblioteca(QWidget):
         header.sectionClicked.connect(self.sort_by_column)
         self.table.setColumnHidden(5, True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
@@ -220,10 +239,10 @@ class Biblioteca(QWidget):
         self.quicklook = QShortcut(QKeySequence("Space"), self.visual_modes)
         self.quicklook.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self.quicklook.activated.connect(self.open_preview)
-        self.inspector = QLabel("Selecione um arquivo para conferir seus dados. Clique duas vezes para abrir com o aplicativo padrão.")
-        self.inspector.setWordWrap(True)
-        self.inspector.setVisible(False)
-        self.media = MediaPreview(self)
+        self.media = MediaPreview(self, embedded=True)
+        self.media.close_requested.connect(self.close_inspector)
+        self.media.setMinimumWidth(260)
+        self.media.setMaximumWidth(440)
         self.browser_split.addWidget(self.media)
         self.browser_split.setStretchFactor(0, 3)
         self.browser_split.setStretchFactor(1, 2)
@@ -302,6 +321,8 @@ class Biblioteca(QWidget):
         self.refresh()
 
     def refresh(self, *args):
+        if hasattr(self, "media"):
+            self.close_inspector()
         if self.sender() in (self.search, self.category, self.ext_filter, self.size_filter, self.project_filter):
             self.offset = 0
         if not self.db.exists():
@@ -360,18 +381,28 @@ class Biblioteca(QWidget):
 
     def inspect(self):
         row = self.table.currentRow()
-        if row < 0 or any(self.table.item(row, col) is None for col in range(6)):
+        if not self.table.selectedItems() or row < 0 or any(self.table.item(row, col) is None for col in range(6)):
+            self.media.setVisible(False)
             return
         values = [self.table.item(row, col).text() for col in range(6)]
+        was_hidden = self.media.isHidden()
         self.media.setVisible(True)
+        if was_hidden:
+            self.browser_split.setSizes([650, 330])
         if self.media.selected != values[5]:
             self.media.select_file(values[5])
         self.media.set_metadata(values)
-        self.inspector.setText(
-            f"Arquivo: {values[0]}  |  Categoria: {values[1]}  |  "
-            f"Tamanho: {values[3]} bytes  |  Alterado: {values[4]}  |  "
-            f"Local: {values[5]}"
-        )
+
+    def close_inspector(self):
+        """Hide previews and return the full content width to the library."""
+        if not hasattr(self, "media"):
+            return
+        self.media.reset_selection()
+        self.media.setVisible(False)
+        self.table.blockSignals(True)
+        self.table.clearSelection()
+        self.table.blockSignals(False)
+        self.gallery.clearSelection()
 
     def toggle_gallery(self):
         current = self.visual_modes.currentIndex()
