@@ -6,7 +6,7 @@ from PySide6.QtCore import QTimer
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QStackedWidget, QMessageBox, QFrame, QCheckBox,
+    QPushButton, QStackedWidget, QMessageBox, QFrame, QCheckBox, QScrollArea, QGridLayout,
 )
 from fluxor_biblioteca import Biblioteca
 from fluxor_app_integrado import FluxorIntegrado
@@ -32,13 +32,13 @@ class Inicio(QWidget):
         else:
             self.resize(1000, 650)
         self.setStyleSheet("""
-            QWidget { background-color: #101720; color: #eef4fa; font-family: 'Helvetica Neue'; font-size: 13px; }
+            QWidget { background-color: #0b101b; color: #e7f1fb; font-family: 'Helvetica Neue'; font-size: 13px; }
             QLabel { background: transparent; }
-            QLabel#eyebrow { color: #81c9d0; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-            QPushButton { background: #202d3d; color: #e9f2fa; border: 1px solid #314358;
+            QLabel#eyebrow { color: #67def1; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+            QPushButton { background: #151f33; color: #e9f2fa; border: 1px solid #263a54;
                           padding: 9px 14px; border-radius: 9px; }
-            QPushButton:hover { background: #2b4053; border-color: #5cbac5; }
-            QPushButton:pressed { background: #24565e; }
+            QPushButton:hover { background: #202c47; border-color: #24c8eb; }
+            QPushButton:pressed { background: #283b64; }
             QPushButton:disabled { color: #718194; background: #182330; border-color: #243141; }
             QLineEdit, QComboBox { background: #182433; border: 1px solid #314358;
                                   padding: 8px; border-radius: 8px; selection-background-color: #287987; }
@@ -47,9 +47,10 @@ class Inicio(QWidget):
                         gridline-color: #253547; selection-background-color: #225864; }
             QHeaderView::section { background: #243347; color: #d8e5f0; border: none;
                                    border-right: 1px solid #33465b; padding: 9px; }
-            QStackedWidget { border: none; }
+            QStackedWidget, QScrollArea { border: none; }
+            QScrollArea > QWidget > QWidget { background: transparent; }
             QWidget#mediaPanel { background: #182433; border: 1px solid #304255; border-radius: 14px; }
-            QFrame#sidebar { background: #172331; border: 1px solid #314358; border-radius: 13px; }
+            QFrame#sidebar { background: #111827; border: 1px solid #25334f; border-radius: 13px; }
             QScrollBar:vertical { background: #14202d; width: 10px; }
             QScrollBar::handle:vertical { background: #43566b; border-radius: 4px; min-height: 22px; }
         """)
@@ -59,11 +60,12 @@ class Inicio(QWidget):
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(14)
         sidebar = QFrame()
+        self.sidebar = sidebar
         sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(205)
         side = QVBoxLayout(sidebar)
-        wordmark = QLabel("◈  FLUXOR")
-        wordmark.setStyleSheet("color: #8fe5e5; font-size: 23px; font-weight: 800; padding: 18px 4px;")
+        wordmark = QLabel("FLUXOR /")
+        wordmark.setStyleSheet("color: #69dcf5; font-family: 'Arial Black'; font-size: 24px; font-style: italic; font-weight: 900; padding: 18px 4px 5px 4px;")
         side.addWidget(wordmark)
         side.addWidget(QLabel("Find what matters."))
         self.side_home = QPushButton("⌂   Visão geral")
@@ -103,17 +105,18 @@ class Inicio(QWidget):
         start = QWidget()
         start_layout = QVBoxLayout(start)
         start_layout.setSpacing(14)
-        title = QLabel("FLUXOR")
-        title.setStyleSheet("font-size: 38px; font-weight: 800; letter-spacing: 3px; color: #8fe5e5;")
+        title = QLabel("Encontre o que importa.")
+        title.setWordWrap(True)
+        title.setStyleSheet("font-size: 31px; font-weight: 800; color: #e7f1fb;")
         start_layout.addWidget(title)
-        start_layout.addWidget(QLabel("Find what matters.  ·  Clareza para seu universo digital."))
+        start_layout.addWidget(QLabel("Explore seu acervo. Organize com prévia e preserve os originais."))
         center = QFrame()
         center.setObjectName("sidebar")
         center_layout = QVBoxLayout(center)
         center_layout.setContentsMargins(22, 18, 22, 18)
         self.zen = ZenCore(center)
         center_layout.addWidget(self.zen, 1)
-        self.zen_state = QLabel("UM ESPAÇO PARA RESPIRAR")
+        self.zen_state = QLabel("SEU ACERVO EM FOCO")
         self.zen_state.setAlignment(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
         self.zen_state.setStyleSheet("font-size: 15px; font-weight: 700; color: #b5dbe1;")
         center_layout.addWidget(self.zen_state)
@@ -121,25 +124,35 @@ class Inicio(QWidget):
         self.home_stats.setAlignment(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
         center_layout.addWidget(self.home_stats)
         start_layout.addWidget(center, 1)
-        actions = QHBoxLayout()
+        actions = QGridLayout()
+        self.action_grid = actions
         browse = QPushButton("Explorar Biblioteca  →")
         organize = QPushButton("Organizar com segurança  →")
+        self.browse_button = browse
+        self.organize_button = organize
         browse.clicked.connect(lambda: self.navigate(1))
         organize.clicked.connect(lambda: self.navigate(2))
-        actions.addWidget(browse)
-        actions.addStretch()
-        actions.addWidget(organize)
+        actions.addWidget(browse, 0, 0)
+        actions.addWidget(organize, 0, 1)
+        actions.setColumnStretch(0, 1)
+        actions.setColumnStretch(1, 1)
         start_layout.addLayout(actions)
         self.reduce_motion = QCheckBox("Reduzir movimento")
         self.reduce_motion.toggled.connect(self.zen.set_reduced_motion)
         self.reduce_motion.toggled.connect(self.sidebar_zen.set_reduced_motion)
         start_layout.addWidget(self.reduce_motion)
-        start_layout.addWidget(QLabel("O centro visual indica atividade, não porcentagem de progresso."))
-        self.pages.addWidget(start)
+        self.zen.setToolTip("Animação de atividade. Não representa porcentagem de progresso.")
+        for_page = QScrollArea()
+        for_page.setWidgetResizable(True)
+        for_page.setWidget(start)
+        self.pages.addWidget(for_page)
         self.library = Biblioteca()
         self.organizer = FluxorIntegrado()
-        self.pages.addWidget(self.library)
-        self.pages.addWidget(self.organizer)
+        for widget in (self.library, self.organizer):
+            page = QScrollArea()
+            page.setWidgetResizable(True)
+            page.setWidget(widget)
+            self.pages.addWidget(page)
         main.addWidget(self.pages)
         self.refresh_zen()
         self.activity_poll = QTimer(self)
@@ -149,6 +162,17 @@ class Inicio(QWidget):
         self.was_active = False
         self.last_active_kind = None
         self.refresh_nav()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not hasattr(self, "action_grid"):
+            return
+        # On 13-inch screens and smaller windows, preserve complete button labels.
+        compact = self.width() < 900
+        self.sidebar.setFixedWidth(165 if compact else 205)
+        self.side_organize.setText("◈   Organizar" if compact else "◈   Organização segura")
+        self.action_grid.addWidget(self.browse_button, 0, 0)
+        self.action_grid.addWidget(self.organize_button, 1 if compact else 0, 0 if compact else 1)
 
     def navigate(self, target):
         current = self.pages.currentIndex()
@@ -204,7 +228,7 @@ class Inicio(QWidget):
             self.zen_state.setText("ORGANIZANDO COM CUIDADO")
         else:
             self.zen.set_state("idle")
-            self.zen_state.setText("UM ESPAÇO PARA RESPIRAR")
+            self.zen_state.setText("SEU ACERVO EM FOCO")
         if self.pages.currentIndex() != 0:
             return
         if self.library.db.exists():
