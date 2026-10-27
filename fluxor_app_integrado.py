@@ -4,11 +4,11 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QCheckBox, QFileDialog, QTextEdit,
-    QProgressBar, QMessageBox, QFrame,
+    QProgressBar, QMessageBox, QFrame, QScrollArea,
 )
 
 from fluxor_core.plan import MODOS, planejar, executar_plano
@@ -80,6 +80,18 @@ class FluxorIntegrado(QWidget):
         subtitle.setObjectName("muted")
         subtitle.setWordWrap(True)
         root.addWidget(subtitle)
+        self.stages_scroll = QScrollArea()
+        self.stages_scroll.setObjectName("stageScroll")
+        self.stages_scroll.setWidgetResizable(True)
+        self.stages_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.stages_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.stages_scroll.setMinimumHeight(150)
+        self.stages_scroll.setMaximumHeight(310)
+        stages_content = QWidget()
+        stages_layout = QVBoxLayout(stages_content)
+        stages_layout.setContentsMargins(0, 0, 0, 0)
+        stages_layout.setSpacing(10)
+        self.stages_scroll.setWidget(stages_content)
 
         acervo = QFrame()
         acervo.setObjectName("stageCard")
@@ -104,7 +116,7 @@ class FluxorIntegrado(QWidget):
         acervo_layout.addWidget(self.origem_label)
         acervo_layout.addWidget(self.destino_label)
         acervo_layout.addLayout(pasta_botoes)
-        root.addWidget(acervo)
+        stages_layout.addWidget(acervo)
 
         process = QFrame()
         process.setObjectName("stageCard")
@@ -138,7 +150,9 @@ class FluxorIntegrado(QWidget):
         for button in (self.b_previa, self.b_organizar, self.b_cancelar):
             acoes.addWidget(button)
         process_layout.addLayout(acoes)
-        root.addWidget(process)
+        stages_layout.addWidget(process)
+        stages_layout.addStretch()
+        root.addWidget(self.stages_scroll, 1)
 
         report = QFrame()
         report.setObjectName("stageCard")
