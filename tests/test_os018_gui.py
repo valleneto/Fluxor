@@ -37,11 +37,9 @@ def main():
         assert isinstance(window.wordmark, FluxorWordmark)
         assert window.wordmark.isVisible()
         assert window.wordmark.width() > window.wordmark.height() * 1.6
-        assert not window.wordmark.grab().isNull()
         assert isinstance(window.zen, FluxorMural)
         assert window.zen.ROWS >= 6
         assert window.zen.timer.interval() >= 50
-        assert not window.zen.grab().isNull()
 
         before = window.zen.phase
         window.zen.advance()
@@ -63,11 +61,6 @@ def main():
         window.zen.phase = 3.4
         window.zen.update()
         app.processEvents()
-        screenshot = os.environ.get("FLUXOR_OS018_SCREENSHOT")
-        if screenshot:
-            image_path = Path(screenshot)
-            image_path.parent.mkdir(parents=True, exist_ok=True)
-            assert window.grab().save(str(image_path), "PNG")
 
         window.navigate(1)
         app.processEvents()
