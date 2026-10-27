@@ -133,7 +133,7 @@ class FluxorMural(ZenCore):
             p.translate(dx, dy)
             p.setBrush(QColor(fill))
             p.setPen(QPen(QColor(edge), thick, Qt.PenStyle.SolidLine,
-                          Qt.PenCapStyle.RoundJoin) if edge
+                          Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin) if edge
                      else Qt.PenStyle.NoPen)
             p.drawPath(lettering)
             p.restore()
