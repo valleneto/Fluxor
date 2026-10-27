@@ -7,7 +7,7 @@ import math
 
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import (
-    QColor, QFont, QLinearGradient, QPainter, QPainterPath,
+    QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath,
     QPen, QRadialGradient, QTransform,
 )
 
@@ -74,13 +74,13 @@ class FluxorMural(ZenCore):
         background.setColorAt(0.0, QColor("#0b1016"))
         background.setColorAt(0.55, QColor("#161823"))
         background.setColorAt(1.0, QColor("#0c1116"))
-        p.fillRect(self.rect(), background)
+        p.fillRect(self.rect(), QBrush(background))
 
         glow = QRadialGradient(QPointF(w * .50, h * .47), max(w, h) * .54)
         glow.setColorAt(0.0, QColor(46, 83, 84, 125))
         glow.setColorAt(0.60, QColor(29, 46, 58, 57))
         glow.setColorAt(1.0, QColor(10, 17, 25, 0))
-        p.fillRect(self.rect(), glow)
+        p.fillRect(self.rect(), QBrush(glow))
 
         # Architectural concrete grid, deliberately irregular and low contrast.
         p.setPen(QPen(QColor(157, 173, 181, 19), 1))
