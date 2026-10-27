@@ -1,5 +1,6 @@
-"""OS017 mural, navigation and backward-compatibility smoke with synthetic files."""
+"""OS017 navigation and backward-compatibility smoke with synthetic files."""
 import os
+import gc
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -69,7 +70,13 @@ def main():
         assert sample.read_bytes() == b"original-intact"
         window.close()
         app.processEvents()
-    print("OS017 graffiti mural paint, motion state, navigation and file safety passed")
+        # Release transient native Qt frame and references deterministically
+        # before the QApplication destructor runs on the CI interpreter.
+        del frame, mural, window
+        gc.collect()
+        app.quit()
+        app.processEvents()
+    print("OS017 renderer, motion state, navigation and file safety passed")
 
 
 if __name__ == "__main__":
