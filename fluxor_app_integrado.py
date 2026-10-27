@@ -239,6 +239,13 @@ class FluxorIntegrado(QWidget):
             else "Escolher pasta de destino"
         )
         if pasta:
+            if not merge and Path(pasta).name == "Fluxor_Organizado":
+                QMessageBox.warning(
+                    self, "Pasta já organizada",
+                    "Escolha a opção 'Acrescentar a uma organização existente' "
+                    "para usar esta pasta sem criar outra dentro dela."
+                )
+                return
             if merge:
                 from fluxor_core.merge import require_safe_target
                 try:
