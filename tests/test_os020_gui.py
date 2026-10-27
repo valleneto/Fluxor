@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -25,13 +26,32 @@ def main():
         assert w.modo.currentText() == "Por tipo, ano e mês"
         assert w.plano is None
 
-        picker = w.criar_seletor_pasta("Synthetic test")
-        assert picker.testOption(QFileDialog.Option.DontUseNativeDialog)
-        assert picker.testOption(QFileDialog.Option.DontResolveSymlinks)
-        assert picker.testOption(QFileDialog.Option.ShowDirsOnly)
-        assert bool(picker.filter() & QDir.Filter.NoSymLinks)
-        picker.close()
-        picker.deleteLater()
+        # Instantiating QFileDialog inside the Linux offscreen test triggers a
+        # Qt native backend teardown crash. Verify the actual factory calls
+        # with a fake; native picker interaction must be validated on macOS.
+        class FakePicker:
+            def __init__(self, parent, title, start):
+                self.parent, self.title, self.start = parent, title, start
+                self.options = {}
+                self.flags = QDir.Filter.NoFilter
+
+            def setFileMode(self, mode):
+                self.file_mode = mode
+
+            def setOption(self, option, enabled):
+                self.options[option] = enabled
+
+            def setFilter(self, flags):
+                self.flags = flags
+
+        with patch("fluxor_app_integrado.QFileDialog", FakePicker):
+            picker = w.criar_seletor_pasta("Synthetic test")
+        assert picker.parent is w
+        assert picker.file_mode == QFileDialog.FileMode.Directory
+        assert picker.options[QFileDialog.Option.DontUseNativeDialog]
+        assert picker.options[QFileDialog.Option.DontResolveSymlinks]
+        assert picker.options[QFileDialog.Option.ShowDirsOnly]
+        assert bool(picker.flags & QDir.Filter.NoSymLinks)
 
         origin = Path(temp) / "synthetic-folder"
         origin.mkdir()
