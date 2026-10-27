@@ -32,6 +32,21 @@ class FluxorMural(ZenCore):
         self._lettering.addText(0, 0, font, "FLUXOR")
         self._letter_bounds = self._lettering.boundingRect()
 
+    def advance(self):
+        """Keep the field visibly alive without accelerating in background."""
+        if not self.isVisible() or self.reduced_motion:
+            return
+        speed = {
+            "idle": 0.95,
+            "scanning": 1.45,
+            "organizing": 1.65,
+            "complete": 0.0,
+            "error": 0.0,
+        }.get(self.state, 0.95)
+        if speed:
+            self.phase = (self.phase + speed) % 360.0
+            self.update()
+
     @staticmethod
     def _ribbon(p, w, h, phase, lane, color):
         offset = math.sin(phase * (0.8 + lane * 0.12) + lane) * h * 0.022
