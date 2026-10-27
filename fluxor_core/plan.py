@@ -4,28 +4,22 @@ import hashlib
 from pathlib import Path
 import os
 import shutil
+import stat as filemode
 
-from fluxor_core.classifier import classificar_arquivo, obter_extensao
+from fluxor_core.criteria import (MODOS_LEGADOS, normalizar_modo, categoria_para,
+                                  conferir_politica, registrar_politica)
 from fluxor_core.organizer import validar_pastas
 from fluxor_core.merge import require_safe_target, ensure_no_links, candidates, matching_content, preview_entries
 
-MODOS = ("Por tipo", "Por extensão", "Por ano", "Por ano e mês")
+MODOS = MODOS_LEGADOS
 
 
 def _categoria(item, modo):
-    if modo == "Por tipo":
-        return classificar_arquivo(item)
-    if modo == "Por extensão":
-        return obter_extensao(item)
-    data = datetime.fromtimestamp(item.stat().st_mtime)
-    if modo == "Por ano":
-        return str(data.year)
-    return f"{data.year}/{data.month:02d}"
+    return categoria_para(item, modo)
 
 
-def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False):
-    if modo not in MODOS:
-        raise ValueError("Modo de organizacao invalido.")
+def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False, progresso=None):
+    normalizar_modo(modo)
     if acrescentar:
         require_safe_target(destino)
     elif Path(destino).expanduser().name == "Fluxor_Organizado":
@@ -39,10 +33,40 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         raise ValueError("O destino organizado não pode ser um link simbólico.")
     arquivos = []
     avisos = []
-    # No symlink folders and no symlink files; avoid copying macOS packages.
-    for pasta, subpastas, nomes in os.walk(origem, followlinks=False):
+    bloqueios = []
+    if base.exists() and not conferir_politica(base, modo):
+        avisos.append("Coleção anterior sem registro de critérios: revise a hierarquia antes de acrescentar.")
+    # Avoid recursive loops and report network permission/access failures.
+    seen_dirs = set()
+    max_depth = 42
+    def walk_error(error):
+        # A disconnected remote share must abort the preview. Never suggest
+        # copying a partial directory listing as if scanning had completed.
+        raise OSError(f"Falha ao ler pasta/rede: {error}")
+    for pasta, subpastas, nomes in os.walk(
+        origem, topdown=True, followlinks=False, onerror=walk_error
+    ):
         if cancelar and cancelar():
             raise InterruptedError("Prévia interrompida pelo usuário.")
+        current = Path(pasta)
+        depth = len(current.relative_to(origem).parts)
+        if depth > max_depth:
+            subpastas[:] = []
+            bloqueios.append(f"Profundidade limitada em {max_depth} níveis: {current}")
+            continue
+        try:
+            stat = current.stat()
+            identity = (stat.st_dev, stat.st_ino)
+        except OSError as error:
+            subpastas[:] = []
+            bloqueios.append(f"Erro ao ler {current}: {error}")
+            continue
+        if stat.st_ino > 0:
+            if identity in seen_dirs:
+                subpastas[:] = []
+                bloqueios.append(f"Possível ciclo de pasta/atalho evitado: {current}")
+                continue
+            seen_dirs.add(identity)
         subpastas[:] = sorted(
             d for d in subpastas
             if not (Path(pasta) / d).is_symlink()
@@ -52,14 +76,16 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
             if cancelar and cancelar():
                 raise InterruptedError("Prévia interrompida pelo usuário.")
             item = Path(pasta) / nome
-            if item.is_symlink() or not item.is_file():
+            if item.is_symlink():
                 continue
             try:
-                categoria = _categoria(item, modo)
                 info = item.stat()
+                if not filemode.S_ISREG(info.st_mode):
+                    continue
+                categoria = _categoria(item, modo)
                 tamanho = info.st_size
             except OSError as erro:
-                avisos.append(f"{item}: {erro}")
+                bloqueios.append(f"{item}: {erro}")
                 continue
             arquivos.append({
                 "origem": str(item),
@@ -68,9 +94,11 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 "tamanho": tamanho,
                 "modified_ns": info.st_mtime_ns,
             })
+            if progresso and len(arquivos) % 40 == 0:
+                progresso(len(arquivos), 0)
     resumo_acrescimo = (
         preview_entries(arquivos, base, sha256_arquivo, cancelar)
-        if acrescentar else {"novos": len(arquivos), "ignorados_identicos": 0, "nomes_alternativos": 0}
+        if acrescentar and not bloqueios else {"novos": len(arquivos), "ignorados_identicos": 0, "nomes_alternativos": 0}
     )
     return {
         "origem": str(origem),
@@ -84,6 +112,8 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         "total_arquivos": len(arquivos),
         "tamanho_total": sum(a["tamanho"] for a in arquivos),
         "avisos": avisos,
+        "bloqueios": bloqueios,
+        "completa": not bloqueios,
     }
 
 
@@ -103,6 +133,18 @@ def verificar_espaco(plano):
         ancora = ancora.parent
     if not ancora.is_dir():
         raise ValueError("Destino indisponivel.")
+    try:
+        readonly_flag = getattr(os, "ST_RDONLY", 1)
+        if os.statvfs(ancora).f_flag & readonly_flag:
+            raise PermissionError(
+                "O disco/pasta de destino é somente leitura. "
+                "Escolha uma pasta gravável; o Samsung NTFS pode estar "
+                "montado apenas para leitura no macOS."
+            )
+    except AttributeError:
+        # On an unusual platform without statvfs, exclusive creation still
+        # protects all originals and fails safely if the target is read-only.
+        pass
     livres = shutil.disk_usage(ancora).free
     necessario = sum(int(x["tamanho"]) for x in plano["arquivos"] if x.get("acao") != "ignorar_identico")
     if livres < necessario:
@@ -111,6 +153,9 @@ def verificar_espaco(plano):
 
 
 def executar_plano(plano, progresso=None, cancelar=None):
+    if not plano.get("completa", True) or plano.get("bloqueios"):
+        raise ValueError("Prévia incompleta: nenhuma cópia foi autorizada. Corrija os erros e refaça a leitura.")
+    normalizar_modo(plano.get("modo", "Por tipo"))
     acrescentar = bool(plano.get("acrescentar", False))
     if acrescentar:
         require_safe_target(plano["destino"])
@@ -120,7 +165,12 @@ def executar_plano(plano, progresso=None, cancelar=None):
         raise ValueError("Pasta organizada não pode ser um link simbólico.")
     if Path(plano["destino_base"]) != base:
         raise ValueError("Destino mudou desde a prévia; refaça a análise.")
+    conferir_politica(base, plano.get("modo", "Por tipo"))
     verificar_espaco(plano)
+    # Record collection policy before the FIRST file copy, so interruptions or
+    # process crashes cannot leave a mixed, unmarked collection.
+    base.mkdir(parents=True, exist_ok=True)
+    registrar_politica(base, plano.get("modo", "Por tipo"))
     copiados = 0
     ignorados = 0
     renomeados = 0

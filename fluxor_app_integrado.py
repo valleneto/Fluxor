@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
 )
 
 from fluxor_core.plan import MODOS, planejar, executar_plano
+from fluxor_folder_picker import SafeFolderPicker
+from fluxor_network import connect_smb
 
 
 class Tarefa(QObject):
@@ -35,7 +37,12 @@ class Tarefa(QObject):
     def executar(self):
         try:
             if self.tipo == "preview":
-                dados = planejar(self.origem, self.destino, self.modo, self.recursivo, cancelar=lambda: self.cancelado, acrescentar=self.acrescentar)
+                dados = planejar(
+                    self.origem, self.destino, self.modo, self.recursivo,
+                    cancelar=lambda: self.cancelado,
+                    acrescentar=self.acrescentar,
+                    progresso=self.progresso.emit,
+                )
             else:
                 dados = executar_plano(
                     self.plano, progresso=self.progresso.emit,
@@ -121,10 +128,17 @@ class FluxorIntegrado(QWidget):
         pasta_botoes = QHBoxLayout()
         self.b_origem = QPushButton("Escolher origem")
         self.b_destino = QPushButton("Escolher destino")
+        self.b_conectar_smb = QPushButton("Conectar SMB (Finder)")
+        self.b_conectar_smb.setToolTip(
+            "Solicita ao Finder abrir o compartilhamento SMB. "
+            "Depois selecione a pasta montada em /Volumes; não guarda senhas."
+        )
+        self.b_conectar_smb.clicked.connect(lambda: connect_smb(self))
         self.b_origem.clicked.connect(self.escolher_origem)
         self.b_destino.clicked.connect(self.escolher_destino)
         pasta_botoes.addWidget(self.b_origem)
         pasta_botoes.addWidget(self.b_destino)
+        pasta_botoes.addWidget(self.b_conectar_smb)
         acervo_layout.addWidget(self.origem_label)
         acervo_layout.addWidget(self.destino_label)
         acervo_layout.addLayout(pasta_botoes)
@@ -149,13 +163,39 @@ class FluxorIntegrado(QWidget):
         opcoes = QHBoxLayout()
         self.modo = QComboBox()
         self.modo.addItems(MODOS)
+        self.modo.addItem("Combinar critérios (ordenar)")
         self.modo.currentTextChanged.connect(self.invalidar_previa)
+        self.modo.currentTextChanged.connect(self.mostrar_criterios)
+        self.modo.setToolTip(
+            "A data é a última modificação do arquivo, não necessariamente "
+            "a data original da foto ou da filmagem. "
+            "Tipo e data cria Imagens/2026/10 e Videos/2026/10."
+        )
         self.recursivo = QCheckBox("Incluir subpastas")
         self.recursivo.setChecked(True)
         self.recursivo.toggled.connect(self.invalidar_previa)
         opcoes.addWidget(self.modo, 1)
         opcoes.addWidget(self.recursivo)
         process_layout.addLayout(opcoes)
+        self.criterios_painel = QWidget()
+        criterios_row = QHBoxLayout(self.criterios_painel)
+        criterios_row.setContentsMargins(0, 0, 0, 0)
+        criterios_row.addWidget(QLabel("Ordem:"))
+        self.criterios = []
+        for index in range(3):
+            escolha = QComboBox()
+            escolha.setToolTip(f"Critério {index + 1}: altere as posições dos campos para definir a ordem.")
+            escolha.addItems(("(Nenhum)",) if index else ())
+            escolha.addItems(("Tipo", "Extensão", "Ano", "Ano/mês", "Ano/mês/dia"))
+            if index == 0:
+                escolha.setCurrentText("Tipo")
+            elif index == 1:
+                escolha.setCurrentText("Ano/mês")
+            escolha.currentIndexChanged.connect(self.invalidar_previa)
+            criterios_row.addWidget(escolha, 1)
+            self.criterios.append(escolha)
+        self.criterios_painel.setVisible(False)
+        process_layout.addWidget(self.criterios_painel)
         acoes = QHBoxLayout()
         self.b_previa = QPushButton("1  Pré-visualizar")
         self.b_previa.setObjectName("primaryAction")
@@ -204,6 +244,18 @@ class FluxorIntegrado(QWidget):
         root.addWidget(report, 1)
         self.atualizar_botoes()
 
+    def mostrar_criterios(self, *args):
+        self.criterios_painel.setVisible(
+            self.modo.currentText() == "Combinar critérios (ordenar)"
+        )
+
+    def modo_escolhido(self):
+        if self.modo.currentText() != "Combinar critérios (ordenar)":
+            return self.modo.currentText()
+        partes = [c.currentText() for c in self.criterios
+                  if c.currentText() != "(Nenhum)"]
+        return "Combinar: " + " > ".join(partes)
+
     def trocar_tipo_destino(self, *args):
         """Destination switches are explicit: never reinterpret an old path."""
         self.destino = ""
@@ -226,7 +278,10 @@ class FluxorIntegrado(QWidget):
         self.atualizar_botoes()
 
     def escolher_origem(self):
-        pasta = QFileDialog.getExistingDirectory(self, "Escolher origem")
+        pasta = SafeFolderPicker.get_directory(
+            self, "Escolher pasta de origem (inclusive rede montada)",
+            initial=self.origem or str(Path.home()),
+        )
         if pasta:
             self.origem = pasta
             self.origem_label.setText(f"Origem: {pasta}")
@@ -234,9 +289,11 @@ class FluxorIntegrado(QWidget):
 
     def escolher_destino(self):
         merge = self.destino_tipo.currentIndex() == 1
-        pasta = QFileDialog.getExistingDirectory(
-            self, "Selecionar Fluxor_Organizado existente" if merge
-            else "Escolher pasta de destino"
+        pasta = SafeFolderPicker.get_directory(
+            self,
+            "Selecionar Fluxor_Organizado existente" if merge
+            else "Escolher pasta de destino",
+            initial=self.destino or str(Path.home()),
         )
         if pasta:
             if not merge and Path(pasta).name == "Fluxor_Organizado":
@@ -261,9 +318,9 @@ class FluxorIntegrado(QWidget):
 
     def atualizar_botoes(self):
         ativo = self.thread is not None
-        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo, self.destino_tipo):
+        for b in (self.b_origem, self.b_destino, self.b_previa, self.modo, self.recursivo, self.destino_tipo, self.b_conectar_smb, *self.criterios):
             b.setEnabled(not ativo)
-        self.b_organizar.setEnabled(not ativo and self.plano is not None)
+        self.b_organizar.setEnabled(not ativo and self.plano is not None and self.plano.get("completa", True))
         self.b_cancelar.setEnabled(ativo)
         self.b_abrir.setEnabled(not ativo and bool(self.saida) and Path(self.saida).is_dir())
 
@@ -281,12 +338,16 @@ class FluxorIntegrado(QWidget):
         self.logs.clear()
         self.started_at = time.monotonic()
         self.eta.setText("Estimativa: calculando apenas durante a cópia." if tipo == "organizar" else "Prévia: tempo variável conforme o acervo.")
+        self.barra.setRange(0, 0 if tipo == "preview" else 100)
         self.barra.setValue(0)
-        self.status.setText("Analisando..." if tipo == "preview" else "Copiando arquivos...")
+        self.status.setText(
+            "Lendo pastas e arquivos em segundo plano. Em rede, a resposta pode demorar..."
+            if tipo == "preview" else "Copiando arquivos..."
+        )
         self.thread = QThread(self)
         self.worker = Tarefa(
             tipo, self.origem, self.destino,
-            self.modo.currentText(), self.recursivo.isChecked(), self.plano,
+            self.modo_escolhido(), self.recursivo.isChecked(), self.plano,
             acrescentar=self.destino_tipo.currentIndex() == 1,
         )
         self.worker.moveToThread(self.thread)
@@ -302,7 +363,14 @@ class FluxorIntegrado(QWidget):
         self.thread.start()
 
     def progresso(self, atual, total):
-        self.barra.setValue(round(atual * 100 / total) if total else 100)
+        if total == 0:
+            self.status.setText(
+                f"Encontrados {atual} arquivos. Leitura em andamento; "
+                "nenhum arquivo foi copiado."
+            )
+            return
+        self.barra.setRange(0, 100)
+        self.barra.setValue(round(atual * 100 / total))
         self.status.setText(f"Processados {atual}/{total}")
         if self.started_at is not None and 3 <= atual < total:
             elapsed = max(0, time.monotonic() - self.started_at)
@@ -312,9 +380,9 @@ class FluxorIntegrado(QWidget):
             self.eta.setText("Cópia concluída.")
 
     def pronto(self, resultado):
-        self.last_outcome = ("partial" if resultado["avisos"] else "success") if self.tarefa == "preview" else ("cancelled" if resultado["cancelado"] else "partial" if resultado["total_erros"] else "success")
+        self.last_outcome = ("partial" if resultado["avisos"] or resultado.get("bloqueios") else "success") if self.tarefa == "preview" else ("cancelled" if resultado["cancelado"] else "partial" if resultado["total_erros"] else "success")
         if self.tarefa == "preview":
-            self.plano = resultado
+            self.plano = resultado if resultado.get("completa", True) else None
             self.logs.append(f"Arquivos: {resultado['total_arquivos']}")
             self.logs.append(f"Tamanho estimado: {resultado['tamanho_total']} bytes")
             self.logs.append(f"Modo: {resultado['modo']}")
@@ -343,8 +411,15 @@ class FluxorIntegrado(QWidget):
                 self.logs.append(f"... e mais {resultado['total_arquivos'] - 150} arquivos")
             for aviso in resultado["avisos"]:
                 self.logs.append(f"AVISO: {aviso}")
+            for bloqueio in resultado.get("bloqueios", []):
+                self.logs.append(f"BLOQUEIO: {bloqueio}")
+            self.barra.setRange(0, 100)
             self.barra.setValue(100)
-            self.status.setText("Prévia concluída. Confira a lista antes de organizar.")
+            self.status.setText(
+                "Prévia incompleta: cópia BLOQUEADA. Corrija os erros de leitura."
+                if not resultado.get("completa", True)
+                else "Prévia concluída. Confira a lista antes de organizar."
+            )
             self.eta.setText("Prévia concluída. A duração da cópia dependerá dos arquivos e do disco.")
         else:
             self.plano = None
@@ -372,6 +447,8 @@ class FluxorIntegrado(QWidget):
     def falha(self, mensagem):
         self.last_outcome = "cancelled" if mensagem.startswith("Operação cancelada") else "error"
         self.plano = None
+        self.barra.setRange(0, 100)
+        self.barra.setValue(0)
         self.status.setText("Falha na operação.")
         self.eta.setText("Tempo indisponível após falha.")
         self.logs.append(f"ERRO: {mensagem}")

@@ -2,7 +2,7 @@ name: Fluxor MVP checks
 
 on:
   pull_request:
-    branches: [master, dev/inspector-contextual-20261026, dev/design-premium-os016, dev/visual-graffiti-os017, dev/zen-sand-luxury-os018]
+    branches: [master, dev/inspector-contextual-20261026, dev/design-premium-os016, dev/visual-graffiti-os017, dev/zen-sand-luxury-os018, dev/merge-safe-brand-os019]
   workflow_dispatch:
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Syntax check
-        run: python -m compileall -q fluxor_core tests fluxor_app_integrado.py fluxor_biblioteca.py fluxor_iniciar.py fluxor_mvp_v2.py fluxor_media.py fluxor_zen.py fluxor_mural.py fluxor_design.py fluxor_brand.py
+        run: python -m compileall -q fluxor_core tests fluxor_app_integrado.py fluxor_biblioteca.py fluxor_iniciar.py fluxor_mvp_v2.py fluxor_media.py fluxor_zen.py fluxor_mural.py fluxor_design.py fluxor_brand.py fluxor_folder_picker.py fluxor_network.py
       - name: Classifier
         run: python -m tests.test_classifier
       - name: Organizer in temporary directory
@@ -65,6 +65,12 @@ jobs:
       - name: OS019 incremental merge and collision safety
         run: python -m tests.test_os019
 
+      - name: OS020 combined type-date and network traversal safety
+        run: python -m tests.test_os020
+
+      - name: OS021 ordered composition and fail-closed safety
+        run: python -m tests.test_os021
+
       - name: OS014 synthetic 50k performance
         run: python -m tests.test_os014_performance
 
@@ -101,3 +107,13 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m tests.test_os019_gui
+
+      - name: OS020 async source browser and combined modes GUI
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m tests.test_os020_gui
+
+      - name: OS021 order controls and stable page browsing
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m tests.test_os021_gui

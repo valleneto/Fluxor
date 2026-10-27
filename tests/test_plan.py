@@ -17,7 +17,9 @@ def executar_testes():
         (origem / "Photos.app").mkdir()
         (origem / "Photos.app" / "interno.txt").write_bytes(b"ignorar")
 
-        for modo in ("Por tipo", "Por extensão", "Por ano", "Por ano e mês"):
+        for posicao, modo in enumerate(("Por tipo", "Por extensão", "Por ano", "Por ano e mês")):
+            # Cada modo usa seu próprio destino; OS021 proíbe misturar hierarquias.
+            destino = raiz / f"destino_{posicao}"
             plano = planejar(origem, destino, modo)
             assert plano["total_arquivos"] == 3, (modo, plano)
             assert plano["tamanho_total"] == 13
@@ -29,6 +31,7 @@ def executar_testes():
                 assert Path(item["origem"]).exists()
             print("OK:", modo)
 
+        destino = raiz / "destino_0"
         plano = planejar(origem, destino, "Por tipo", recursivo=False)
         assert plano["total_arquivos"] == 1
         assert len(plano["arquivos"]) == 1
