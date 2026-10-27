@@ -51,7 +51,7 @@ class MediaPreview(QWidget):
         self.picture.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.picture.setMinimumHeight(150)
         self.picture.setMaximumHeight(245)
-        self.picture.setStyleSheet("background: #101827; color: #9cabc1; border-radius: 14px; padding: 16px;")
+        self.picture.setStyleSheet("background: #111c28; color: #a7bac5; border-radius: 12px; padding: 16px;")
         self.stack.addWidget(self.picture)
         layout.addWidget(self.stack)
         controls = QHBoxLayout()
