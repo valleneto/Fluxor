@@ -31,7 +31,7 @@ def _categoria(item, modo):
     raise ValueError("Modo de organização não reconhecido.")
 
 
-def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False):
+def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False, progresso=None):
     if modo not in MODOS:
         raise ValueError("Modo de organizacao invalido.")
     if acrescentar:
@@ -47,10 +47,35 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         raise ValueError("O destino organizado não pode ser um link simbólico.")
     arquivos = []
     avisos = []
-    # No symlink folders and no symlink files; avoid copying macOS packages.
-    for pasta, subpastas, nomes in os.walk(origem, followlinks=False):
+    # Avoid recursive loops and report network permission/access failures.
+    seen_dirs = set()
+    max_depth = 42
+    def walk_error(error):
+        avisos.append(f"Pasta inacessível ou conexão perdida: {error}")
+    for pasta, subpastas, nomes in os.walk(
+        origem, topdown=True, followlinks=False, onerror=walk_error
+    ):
         if cancelar and cancelar():
             raise InterruptedError("Prévia interrompida pelo usuário.")
+        current = Path(pasta)
+        depth = len(current.relative_to(origem).parts)
+        if depth > max_depth:
+            subpastas[:] = []
+            avisos.append(f"Profundidade limitada em {max_depth} níveis: {current}")
+            continue
+        try:
+            stat = current.stat()
+            identity = (stat.st_dev, stat.st_ino)
+        except OSError as error:
+            subpastas[:] = []
+            avisos.append(f"Erro ao ler {current}: {error}")
+            continue
+        if stat.st_ino > 0:
+            if identity in seen_dirs:
+                subpastas[:] = []
+                avisos.append(f"Possível ciclo de pasta/atalho evitado: {current}")
+                continue
+            seen_dirs.add(identity)
         subpastas[:] = sorted(
             d for d in subpastas
             if not (Path(pasta) / d).is_symlink()
@@ -76,6 +101,8 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 "tamanho": tamanho,
                 "modified_ns": info.st_mtime_ns,
             })
+            if progresso and len(arquivos) % 40 == 0:
+                progresso(len(arquivos), 0)
     resumo_acrescimo = (
         preview_entries(arquivos, base, sha256_arquivo, cancelar)
         if acrescentar else {"novos": len(arquivos), "ignorados_identicos": 0, "nomes_alternativos": 0}
