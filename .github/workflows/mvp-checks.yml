@@ -2,7 +2,7 @@ name: Fluxor MVP checks
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, dev/inspector-contextual-20261026]
   workflow_dispatch:
 
 jobs:
