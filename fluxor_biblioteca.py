@@ -13,6 +13,7 @@ from fluxor_core.library import index_folder, search_files, catalog_summary, sto
 from fluxor_core.duplicates import find_exact_duplicates
 from fluxor_core.intelligence import radar_report, version_candidates
 from fluxor_media import MediaPreview
+from fluxor_folder_picker import SafeFolderPicker
 from fluxor_core.workspace import review_add, review_list, collection_add, collection_list
 
 
@@ -258,7 +259,7 @@ class Biblioteca(QWidget):
         self.refresh()
 
     def choose_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Escolher pasta para Biblioteca")
+        folder = SafeFolderPicker.get_directory(self, "Escolher pasta para Biblioteca (rede montada)")
         if not folder:
             return
         self.index_button.setEnabled(False)
