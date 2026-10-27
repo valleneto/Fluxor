@@ -51,7 +51,9 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
     seen_dirs = set()
     max_depth = 42
     def walk_error(error):
-        avisos.append(f"Pasta inacessível ou conexão perdida: {error}")
+        # A disconnected remote share must abort the preview. Never suggest
+        # copying a partial directory listing as if scanning had completed.
+        raise OSError(f"Falha ao ler pasta/rede: {error}")
     for pasta, subpastas, nomes in os.walk(
         origem, topdown=True, followlinks=False, onerror=walk_error
     ):
@@ -138,6 +140,18 @@ def verificar_espaco(plano):
         ancora = ancora.parent
     if not ancora.is_dir():
         raise ValueError("Destino indisponivel.")
+    try:
+        readonly_flag = getattr(os, "ST_RDONLY", 1)
+        if os.statvfs(ancora).f_flag & readonly_flag:
+            raise PermissionError(
+                "O disco/pasta de destino é somente leitura. "
+                "Escolha uma pasta gravável; o Samsung NTFS pode estar "
+                "montado apenas para leitura no macOS."
+            )
+    except AttributeError:
+        # On an unusual platform without statvfs, exclusive creation still
+        # protects all originals and fails safely if the target is read-only.
+        pass
     livres = shutil.disk_usage(ancora).free
     necessario = sum(int(x["tamanho"]) for x in plano["arquivos"] if x.get("acao") != "ignorar_identico")
     if livres < necessario:
