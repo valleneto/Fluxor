@@ -93,6 +93,7 @@ def matching_content(source, source_size, existing, checksum, cancel=None):
 def preview_entries(entries, base, checksum, cancel=None):
     """Annotate files for safe additions without touching destination content."""
     cache = {}
+    pending = {}  # category -> [(source path, size, predicted output path)]
     added = skipped = renamed = 0
     for entry in entries:
         if cancel and cancel():
@@ -104,6 +105,16 @@ def preview_entries(entries, base, checksum, cancel=None):
         existing, reserved = cache[key]
         duplicate = matching_content(
             entry["origem"], entry["tamanho"], existing, checksum, cancel=cancel)
+        if duplicate is None:
+            # Avoid adding identical bytes twice in the SAME incoming batch.
+            for earlier_source, earlier_size, earlier_output in pending.get(key, []):
+                if cancel and cancel():
+                    raise InterruptedError("Prévia interrompida.")
+                if earlier_size != entry["tamanho"]:
+                    continue
+                if checksum(earlier_source) == checksum(entry["origem"]):
+                    duplicate = Path(earlier_output)
+                    break
         if duplicate is not None:
             entry["acao"] = "ignorar_identico"
             entry["identico_a"] = str(duplicate)
@@ -115,6 +126,9 @@ def preview_entries(entries, base, checksum, cancel=None):
         entry["destino_relativo"] = str(parent / name)
         entry["destino_previsto"] = str(Path(base) / parent / name)
         entry["renomear"] = name != Path(entry["origem"]).name
+        pending.setdefault(key, []).append(
+            (Path(entry["origem"]), entry["tamanho"], entry["destino_previsto"])
+        )
         added += 1
         renamed += int(entry["renomear"])
     return {"novos": added, "ignorados_identicos": skipped,
