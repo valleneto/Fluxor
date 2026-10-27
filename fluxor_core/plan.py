@@ -28,6 +28,11 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         raise ValueError("Modo de organizacao invalido.")
     if acrescentar:
         require_safe_target(destino)
+    elif Path(destino).expanduser().name == "Fluxor_Organizado":
+        raise ValueError(
+            "Você selecionou a pasta já organizada. Use "
+            "'Acrescentar a uma organização existente' para evitar subpastas duplicadas."
+        )
     origem, destino = validar_pastas(origem, destino)
     base = destino if acrescentar else destino / "Fluxor_Organizado"
     if base.is_symlink():
