@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QStackedWidget, QMessageBox, QFrame, QCheckBox,
 )
-from fluxor_biblioteca import Biblioteca
+from fluxor_biblioteca import Biblioteca, human_size
 from fluxor_app_integrado import FluxorIntegrado
 from fluxor_zen import ZenCore
 from fluxor_mural import FluxorMural
@@ -217,7 +217,11 @@ class Inicio(QWidget):
         if self.library.db.exists():
             try:
                 info = catalog_summary(self.library.db)
-                self.home_stats.setText(f"{info['total']:,} arquivos catalogados  ·  {info['size'] / (1024**3):.2f} GB indexados")
+                count = info["total"]
+                filename_text = "arquivo catalogado" if count == 1 else "arquivos catalogados"
+                self.home_stats.setText(
+                    f"{count:,} {filename_text}  ·  {human_size(info['size'])} no índice"
+                )
             except Exception:
                 self.home_stats.setText("Resumo da Biblioteca indisponível.")
         else:
