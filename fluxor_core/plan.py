@@ -167,6 +167,10 @@ def executar_plano(plano, progresso=None, cancelar=None):
         raise ValueError("Destino mudou desde a prévia; refaça a análise.")
     conferir_politica(base, plano.get("modo", "Por tipo"))
     verificar_espaco(plano)
+    # Record collection policy before the FIRST file copy, so interruptions or
+    # process crashes cannot leave a mixed, unmarked collection.
+    base.mkdir(parents=True, exist_ok=True)
+    registrar_politica(base, plano.get("modo", "Por tipo"))
     copiados = 0
     ignorados = 0
     renomeados = 0
@@ -284,11 +288,6 @@ def executar_plano(plano, progresso=None, cancelar=None):
                 break
         if progresso:
             progresso(indice, total)
-    if copiados and not cancelado and not erros:
-        try:
-            registrar_politica(base, plano.get("modo", "Por tipo"))
-        except (OSError, ValueError) as exc:
-            erros.append({"origem": "", "erro": f"Não foi possível registrar os critérios: {exc}"})
     return {
         "destino_base": str(base),
         "acrescentar": acrescentar,
