@@ -240,12 +240,8 @@ class FluxorIntegrado(QWidget):
         self.eta.setText("Tempo restante: —")
         self.atualizar_botoes()
 
-    def selecionar_pasta_segura(self, titulo):
-        """Non-native Qt picker: avoid Finder aliases/symlink navigation cycles.
-
-        Direct path entry remains available if a huge mounted share still makes
-        graphical browsing slow. This does NOT mount or access SFTP URLs.
-        """
+    def criar_seletor_pasta(self, titulo):
+        """Construct an inspectable, non-native folder picker."""
         dialog = QFileDialog(self, titulo, str(Path.home()))
         dialog.setFileMode(QFileDialog.FileMode.Directory)
         dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
@@ -255,6 +251,11 @@ class FluxorIntegrado(QWidget):
             QDir.Filter.AllDirs | QDir.Filter.NoDotAndDotDot |
             QDir.Filter.NoSymLinks
         )
+        return dialog
+
+    def selecionar_pasta_segura(self, titulo):
+        """Avoid native Finder alias loops; the path field bypasses browsing."""
+        dialog = self.criar_seletor_pasta(titulo)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return ""
         paths = dialog.selectedFiles()
