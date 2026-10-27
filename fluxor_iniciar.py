@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from fluxor_biblioteca import Biblioteca
 from fluxor_app_integrado import FluxorIntegrado
 from fluxor_zen import ZenCore
+from fluxor_mural import FluxorMural
 from fluxor_design import STYLESHEET
 from fluxor_core.library import catalog_summary
 
@@ -18,7 +19,7 @@ from fluxor_core.library import catalog_summary
 class Inicio(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("FLUXOR — Find what matters")
+        self.setWindowTitle("FLUXOR — Seu fluxo. Seu controle.")
         asset_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
         logo_path = asset_root / "assets" / "fluxor_logo.png"
         if logo_path.is_file():
@@ -41,7 +42,7 @@ class Inicio(QWidget):
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
         self.sidebar = sidebar
-        sidebar.setFixedWidth(190)
+        sidebar.setFixedWidth(192)
         side = QVBoxLayout(sidebar)
         side.setContentsMargins(12, 18, 12, 14)
         side.setSpacing(9)
@@ -56,18 +57,18 @@ class Inicio(QWidget):
             logo_mark.setText("◈")
         brand.addWidget(logo_mark)
         wordmark = QLabel("FLUXOR")
-        wordmark.setStyleSheet("color: #d8f4f7; font-size: 19px; font-weight: 750; letter-spacing: 2px;")
+        wordmark.setObjectName("brandName")
         brand.addWidget(wordmark)
         brand.addStretch()
         side.addLayout(brand)
-        strap = QLabel("Seu universo digital, em ordem.")
+        strap = QLabel("STREET TO STRUCTURE  /  001")
         strap.setObjectName("sidebarCaption")
         strap.setWordWrap(True)
         side.addWidget(strap)
         side.addSpacing(20)
-        self.side_home = QPushButton("Visão geral")
-        self.side_library = QPushButton("Biblioteca")
-        self.side_organize = QPushButton("Organização segura")
+        self.side_home = QPushButton("01   /   INÍCIO")
+        self.side_library = QPushButton("02   /   BIBLIOTECA")
+        self.side_organize = QPushButton("03   /   ORGANIZAR")
         for nav_button in (self.side_home, self.side_library, self.side_organize):
             nav_button.setObjectName("navButton")
             nav_button.setCheckable(True)
@@ -84,7 +85,7 @@ class Inicio(QWidget):
         self.sidebar_activity = QLabel("Atividade em andamento")
         self.sidebar_activity.setVisible(False)
         side.addWidget(self.sidebar_activity)
-        trust = QLabel("LOCAL · BETA\nSeus arquivos permanecem seus.")
+        trust = QLabel("ORIGINAL PRESERVADO\nAções no seu controle.")
         trust.setObjectName("sidebarCaption")
         trust.setWordWrap(True)
         side.addWidget(trust)
@@ -111,14 +112,14 @@ class Inicio(QWidget):
         start_layout = QVBoxLayout(start)
         start_layout.setContentsMargins(16, 12, 16, 12)
         start_layout.setSpacing(12)
-        eyebrow = QLabel("UM LUGAR MAIS CLARO PARA SEUS ARQUIVOS")
+        eyebrow = QLabel("ARQUIVOS  /  CONTROLE  /  MOVIMENTO")
         eyebrow.setObjectName("sectionEyebrow")
         start_layout.addWidget(eyebrow)
-        title = QLabel("Encontre o que importa.")
+        title = QLabel("O CAOS TEM FLUXO.")
         title.setObjectName("heroTitle")
         title.setWordWrap(True)
         start_layout.addWidget(title)
-        tagline = QLabel("Descubra, revise e organize com tranquilidade. Nada é apagado automaticamente.")
+        tagline = QLabel("Seu acervo, suas regras. Encontre, selecione e organize sem apagar os originais.")
         tagline.setObjectName("muted")
         tagline.setWordWrap(True)
         start_layout.addWidget(tagline)
@@ -127,9 +128,9 @@ class Inicio(QWidget):
         center_layout = QVBoxLayout(center)
         center_layout.setContentsMargins(22, 16, 22, 16)
         center_layout.setSpacing(4)
-        self.zen = ZenCore(center)
+        self.zen = FluxorMural(center)
         center_layout.addWidget(self.zen, 1)
-        self.zen_state = QLabel("PRONTO PARA EXPLORAR")
+        self.zen_state = QLabel("FLUXOR   /   SISTEMA PRONTO")
         self.zen_state.setAlignment(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
         self.zen_state.setObjectName("eyebrow")
         center_layout.addWidget(self.zen_state)
@@ -140,16 +141,16 @@ class Inicio(QWidget):
         center_layout.addWidget(self.home_stats)
         start_layout.addWidget(center, 1)
         actions = QHBoxLayout()
-        browse = QPushButton("Explorar Biblioteca  →")
+        browse = QPushButton("ABRIR BIBLIOTECA  ↗")
         browse.setObjectName("primaryAction")
-        organize = QPushButton("Organizar com segurança")
+        organize = QPushButton("ORGANIZAR ARQUIVOS")
         browse.clicked.connect(lambda: self.navigate(1))
         organize.clicked.connect(lambda: self.navigate(2))
         actions.addWidget(browse)
         actions.addWidget(organize)
         actions.addStretch()
         start_layout.addLayout(actions)
-        self.reduce_motion = QCheckBox("Reduzir movimento")
+        self.reduce_motion = QCheckBox("Reduzir animação")
         self.reduce_motion.setToolTip("Desativa a animação sem impedir o funcionamento do aplicativo")
         self.reduce_motion.toggled.connect(self.zen.set_reduced_motion)
         self.reduce_motion.toggled.connect(self.sidebar_zen.set_reduced_motion)
@@ -223,7 +224,7 @@ class Inicio(QWidget):
             self.zen_state.setText("ORGANIZANDO COM CUIDADO")
         else:
             self.zen.set_state("idle")
-            self.zen_state.setText("PRONTO PARA EXPLORAR")
+            self.zen_state.setText("FLUXOR   /   SISTEMA PRONTO")
         if self.pages.currentIndex() != 0:
             return
         if self.library.db.exists():
