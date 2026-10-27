@@ -184,7 +184,7 @@ class FluxorIntegrado(QWidget):
         self.criterios = []
         for index in range(3):
             escolha = QComboBox()
-            escolha.setToolTip(f"Critério {index + 1}: arraste a ordem pela posição deste campo.")
+            escolha.setToolTip(f"Critério {index + 1}: altere as posições dos campos para definir a ordem.")
             escolha.addItems(("(Nenhum)",) if index else ())
             escolha.addItems(("Tipo", "Extensão", "Ano", "Ano/mês", "Ano/mês/dia"))
             if index == 0:

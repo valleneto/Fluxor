@@ -4,6 +4,7 @@ The database stores metadata and paths, never file contents.
 """
 import os
 import sqlite3
+import stat
 from contextlib import closing
 from pathlib import Path
 
@@ -85,10 +86,12 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                     if cancel and cancel():
                         raise InterruptedError("Indexação cancelada; transação revertida.")
                     item = Path(folder) / name
-                    if item.is_symlink() or not item.is_file():
+                    if item.is_symlink():
                         continue
                     try:
                         info = item.stat()
+                        if not stat.S_ISREG(info.st_mode):
+                            continue
                         relative = item.relative_to(root)
                         record = (
                             str(item), str(root), item.name,

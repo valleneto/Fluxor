@@ -121,7 +121,7 @@ class SafeFolderPicker(QDialog):
             self._set_enabled()
             self.status.setText(
                 "Este navegador usa pastas montadas pelo macOS, não URLs. "
-                "Conecte SMB pelo Finder e selecione a pasta em /Volumes."
+                "Monte o compartilhamento SMB pelo Finder e selecione a pasta em /Volumes."
             )
             return
         if typed:
