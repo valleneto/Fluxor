@@ -64,6 +64,19 @@ def main():
         assert alt.read_bytes() == b"different-video-C"
         assert sha256_arquivo(old_path) == old_digest
 
+        # Two incoming names containing the same NEW bytes produce only one copy.
+        batch = root / "batch"
+        batch.mkdir()
+        (batch / "sample-a.mp4").write_bytes(b"new-same-content-in-batch")
+        (batch / "sample-b.mp4").write_bytes(b"new-same-content-in-batch")
+        batch_preview = planejar(batch, base, "Por tipo", acrescentar=True)
+        assert batch_preview["resumo_acrescimo"]["novos"] == 1, batch_preview
+        assert batch_preview["resumo_acrescimo"]["ignorados_identicos"] == 1
+        batch_result = executar_plano(batch_preview)
+        assert batch_result["total_copiados"] == 1
+        assert batch_result["total_ignorados"] == 1
+        assert sha256_arquivo(old_path) == old_digest
+
         # Stale source snapshots must not be copied.
         (incoming / "newer.mov").write_bytes(b"timestamp-A")
         stale = planejar(incoming, base, "Por tipo", acrescentar=True)
