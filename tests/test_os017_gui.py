@@ -13,9 +13,13 @@ from fluxor_core.library import index_folder
 
 
 def image_digest(widget):
+    """Hash an encoded temporary PNG, not a raw Shiboken image buffer."""
     image = widget.grab().toImage()
     assert not image.isNull()
-    return sha256(bytes(image.bits())).hexdigest()
+    with TemporaryDirectory() as tmp:
+        frame = Path(tmp) / "frame.png"
+        assert image.save(str(frame), "PNG")
+        return sha256(frame.read_bytes()).hexdigest()
 
 
 def main():
