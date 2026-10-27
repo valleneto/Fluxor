@@ -175,6 +175,11 @@ class SafeFolderPicker(QDialog):
         self._timeout.stop()
         self._busy = False
         if error:
+            # Prevent accidentally selecting the PREVIOUS folder after a failed
+            # network jump or a refused symlink.
+            self._path = ""
+            self.folders.clear()
+            self.more_button.setVisible(False)
             self._set_enabled()
             self.status.setText("Não foi possível acessar: " + error)
             return
