@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 import os
 import shutil
+import time
 
 from fluxor_core.classifier import classificar_arquivo, obter_extensao
 from fluxor_core.organizer import validar_pastas
@@ -29,7 +30,7 @@ def _categoria(item, modo):
     raise ValueError("Modo de organização inválido.")
 
 
-def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False):
+def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False, informar=None):
     if modo not in MODOS:
         raise ValueError("Modo de organizacao invalido.")
     if acrescentar:
@@ -51,6 +52,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
         avisos.append(f"Pasta inacessível: {erro.filename or origem} — {erro}")
 
     visited_directories = set()
+    last_heartbeat = time.monotonic()
     # Never follow nested symbolic links, including aliases to remote shares.
     for pasta, subpastas, nomes in os.walk(
         origem, followlinks=False, onerror=handle_walk_error
@@ -66,6 +68,9 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
             subpastas[:] = []
             continue
         visited_directories.add(canonical)
+        if informar and time.monotonic() - last_heartbeat > .35:
+            informar(len(arquivos), Path(pasta).name or str(pasta))
+            last_heartbeat = time.monotonic()
         if cancelar and cancelar():
             raise InterruptedError("Prévia interrompida pelo usuário.")
         subpastas[:] = sorted(
@@ -93,6 +98,11 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 "tamanho": tamanho,
                 "modified_ns": info.st_mtime_ns,
             })
+            if informar and time.monotonic() - last_heartbeat > .35:
+                informar(len(arquivos), Path(pasta).name or str(pasta))
+                last_heartbeat = time.monotonic()
+    if informar:
+        informar(len(arquivos), "Leitura concluída")
     resumo_acrescimo = (
         preview_entries(arquivos, base, sha256_arquivo, cancelar)
         if acrescentar else {"novos": len(arquivos), "ignorados_identicos": 0, "nomes_alternativos": 0}
