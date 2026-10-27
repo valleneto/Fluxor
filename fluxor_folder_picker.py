@@ -8,6 +8,7 @@ import os
 import threading
 import heapq
 from pathlib import Path
+from fluxor_network import connect_smb
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -66,6 +67,14 @@ class SafeFolderPicker(QDialog):
             button = QPushButton(title_text)
             button.clicked.connect(lambda _, value=path: self._start(value))
             shortcuts.addWidget(button)
+        # SMB connection lives INSIDE the optional folder dialog, not among the
+        # OS019 navigation/actions buttons in the main window.
+        self.connect_smb_button = QPushButton("Conectar SMB (Finder)…")
+        self.connect_smb_button.setToolTip(
+            "O Finder monta a rede; depois clique em Rede montada ou selecione /Volumes."
+        )
+        self.connect_smb_button.clicked.connect(lambda: connect_smb(self))
+        shortcuts.addWidget(self.connect_smb_button)
         root.addLayout(shortcuts)
 
         self.folders = QListWidget()

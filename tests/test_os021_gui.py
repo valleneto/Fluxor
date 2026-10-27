@@ -58,7 +58,7 @@ def main():
         assert o.criterios_painel.isVisible()
         assert o.modo_escolhido() == "Combinar: Ano/mês > Tipo"
         assert not o.b_organizar.isEnabled()
-        assert o.b_conectar_smb is not None
+        assert picker.connect_smb_button is not None
         window.close()
         picker_app.processEvents()
     print("OS021 Qt criteria order, SMB affordance and stable keyset pagination passed")

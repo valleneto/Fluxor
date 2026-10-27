@@ -117,3 +117,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m tests.test_os021_gui
+
+      - name: OS021 restored OS019 presentation and network entry
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m tests.test_os021_visual_os019

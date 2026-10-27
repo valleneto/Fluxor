@@ -4,143 +4,149 @@ Brushed silver and muted gold, entirely vector drawn. No stock fonts bundled,
 external image, square badge, crown, fluorescent colors or third-party assets.
 """
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPainterPathStroker, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
 
 class FluxorWordmark(QWidget):
-    """Hand-composed angular wildstyle letters, not a font with arrows added."""
+    """Horizontal graffiti-influenced wordmark for the left sidebar only."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("fluxorWordmark")
-        self.setMinimumSize(145, 66)
-        self.setMaximumHeight(94)
-        self.setToolTip("FLUXOR · wildstyle em prata e dourado")
-
-        def figure(*points):
-            path = QPainterPath(QPointF(*points[0]))
-            for point in points[1:]:
-                path.lineTo(QPointF(*point))
-            return path
-
-        # Six individually authored letter skeletons, joined with negative
-        # spaces, linked directional strokes and crossing layers.
-        self._glyphs = [
-            # F
-            figure((13,88), (8,25), (59,16)),
-            figure((13,57), (44,47)),
-            # L
-            figure((70,16), (67,86), (110,75)),
-            # U
-            figure((118,21), (116,69), (134,86), (153,73), (159,19)),
-            # X
-            figure((170,18), (209,85)),
-            figure((208,17), (169,88)),
-            # O
-            figure((225,24), (243,16), (266,28), (265,70),
-                   (246,86), (225,74), (225,24)),
-            # R
-            figure((279,86), (279,24), (308,19), (323,34), (313,52),
-                   (279,57)),
-            figure((304,53), (333,84)),
-        ]
-        stroker = QPainterPathStroker()
-        stroker.setWidth(19)
-        stroker.setCapStyle(Qt.PenCapStyle.SquareCap)
-        stroker.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
-        self._filled_letters = QPainterPath()
-        for glyph in self._glyphs:
-            self._filled_letters.addPath(stroker.createStroke(glyph))
-
-        self._under = [
-            figure((-4,96), (52,65), (94,81), (149,40),
-                   (189,69), (240,31), (339,12)),
-            figure((1,8), (76,42), (133,11), (200,78),
-                   (258,49), (334,98)),
-        ]
-        self._over = figure(
-            (6,93), (66,52), (126,73), (175,19),
-            (229,76), (281,35), (334,11),
-        )
+        self.setMinimumSize(135, 52)
+        self.setMaximumHeight(80)
+        self.setToolTip("FLUXOR")
+        font = QFont("Arial Black")
+        font.setPixelSize(120)
+        font.setBold(True)
+        font.setItalic(True)
+        self._letters = QPainterPath()
+        self._letters.addText(QPointF(0, 0), font, "FLUXOR")
+        self._bounds = self._letters.boundingRect()
 
     @staticmethod
-    def _trace(painter, path, ink, width, edge="#0c0d0e", edge_width=None):
-        edge_pen = QPen(QColor(edge), edge_width or width + 6,
-                        Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap,
-                        Qt.PenJoinStyle.MiterJoin)
-        painter.setPen(edge_pen)
-        painter.drawPath(path)
-        painter.setPen(QPen(QColor(ink), width, Qt.PenStyle.SolidLine,
-                            Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin))
-        painter.drawPath(path)
-
-    @staticmethod
-    def _arrow(painter, tip, direction, ink, width=5):
-        """Straight arrow head terminating an actual letter/connector stroke."""
+    def _arrow(painter, start, tip, color, width=2.7):
+        """A directional arrow, part of the tag, not a separate badge."""
         import math
-        angle = math.atan2(direction[1], direction[0])
-        span = 15
-        painter.setPen(QPen(QColor("#0c0d0e"), width + 6,
-                            Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap,
-                            Qt.PenJoinStyle.MiterJoin))
-        for offset in (-.68, .68):
-            other = QPointF(tip[0] - span * math.cos(angle + offset),
-                            tip[1] - span * math.sin(angle + offset))
-            painter.drawLine(QPointF(*tip), other)
-        painter.setPen(QPen(QColor(ink), width, Qt.PenStyle.SolidLine,
-                            Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin))
-        for offset in (-.68, .68):
-            other = QPointF(tip[0] - span * math.cos(angle + offset),
-                            tip[1] - span * math.sin(angle + offset))
-            painter.drawLine(QPointF(*tip), other)
+        painter.setPen(QPen(color, width, Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.drawLine(start, tip)
+        angle = math.atan2(tip.y() - start.y(), tip.x() - start.x())
+        length = max(5.0, width * 3.0)
+        spread = .58
+        for delta in (spread, -spread):
+            dx = length * math.cos(angle + math.pi + delta)
+            dy = length * math.sin(angle + math.pi + delta)
+            painter.drawLine(tip, QPointF(tip.x() + dx, tip.y() + dy))
 
     def paintEvent(self, event):
+        """Two-color hand-composed tag with interwoven arrows through the glyphs."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         w, h = self.width(), self.height()
-        scale = min((w - 6) / 365.0, (h - 4) / 122.0)
-        painter.translate((w - 350 * scale) * .5, (h - 110 * scale) * .5)
+        b = self._bounds
+        if b.width() <= 0 or b.height() <= 0:
+            painter.end()
+            return
+        scale = min((w - 17) / (b.width() + 42),
+                    (h - 19) / (b.height() + 30))
+        painter.save()
+        painter.translate(w * .51, h * .51)
+        painter.shear(-.12, 0.0)
         painter.scale(scale, scale)
-        painter.shear(-.045, 0)
+        painter.translate(-b.center().x(), -b.center().y())
 
-        gold = "#b79b6d"
-        silver = "#d8d9d7"
-        charcoal = "#0c0d0e"
+        gold = QColor("#ad9162")
+        silver = QColor("#d6d8d7")
+        shadow = QColor("#0f1114")
+        left, top, bw, bh = b.left(), b.top(), b.width(), b.height()
 
-        # Wildstyle requires true crossings: the paths are laid BELOW the
-        # geometric letters, then selected segments continue ABOVE the faces.
+        # Angular tracks behind the main tag, stretching past the first/last glyph.
+        tracks = [
+            [( -.09, .64), (.13, .28), (.24, .48), (.39, .13), (.51, .45), (.73, .20), (1.08, .12)],
+            [( -.07, .87), (.18, .55), (.35, .81), (.52, .40), (.68, .71), (.89, .39), (1.08, .53)],
+        ]
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        self._trace(painter, self._under[0], gold, 6, charcoal, 13)
-        self._trace(painter, self._under[1], silver, 5, charcoal, 12)
+        for n, points in enumerate(tracks):
+            route = QPainterPath()
+            for j, (ux, uy) in enumerate(points):
+                point = QPointF(left + bw * ux, top + bh * uy)
+                if not j:
+                    route.moveTo(point)
+                else:
+                    route.lineTo(point)
+            painter.setPen(QPen(shadow, 20, Qt.PenStyle.SolidLine,
+                                Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+            painter.drawPath(route)
+            painter.setPen(QPen(gold if n == 0 else silver, 10,
+                                Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
+                                Qt.PenJoinStyle.MiterJoin))
+            painter.drawPath(route)
 
+        # Offset throw-up letter volume. Negative ink prevents a glossy corporate logo.
         painter.save()
-        painter.translate(5, 7)
-        for glyph in self._glyphs:
-            self._trace(painter, glyph, gold, 18, charcoal, 29)
+        painter.translate(10, 8)
+        painter.setBrush(gold)
+        painter.setPen(QPen(shadow, 9, Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.drawPath(self._letters)
+        painter.restore()
+        gradient = QLinearGradient(left, top, left + bw * .22, top + bh)
+        gradient.setColorAt(0, QColor("#f0f0eb"))
+        gradient.setColorAt(.60, QColor("#bfc4c7"))
+        gradient.setColorAt(1, QColor("#899296"))
+        painter.setBrush(gradient)
+        painter.setPen(QPen(shadow, 7, Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.drawPath(self._letters)
+
+        # A gold path weaves OVER the body only where it intersects the letters.
+        # Every second segment resumes BEHIND the glyphs, so the stroke alternates
+        # visually through the wordmark, like traditional wildstyle graffiti.
+        weave = QPainterPath()
+        weave.moveTo(QPointF(left - bw * .02, top + bh * .81))
+        for ux, uy in ((.16,.67), (.29,.39), (.40,.66), (.57,.24),
+                       (.70,.51), (.86,.32), (1.03,.09)):
+            weave.lineTo(QPointF(left + bw * ux, top + bh * uy))
+        painter.save()
+        painter.setClipPath(self._letters)
+        painter.setPen(QPen(shadow, 20, Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.drawPath(weave)
+        painter.setPen(QPen(gold, 11, Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.drawPath(weave)
         painter.restore()
 
-        for glyph in self._glyphs:
-            self._trace(painter, glyph, silver, 18, charcoal, 29)
-        # Second ink cuts ACROSS the actual letter geometry, without leaving
-        # the silver letter bodies. Not an ornamental arrow sticker.
-        painter.save()
-        painter.setClipPath(self._filled_letters)
-        self._trace(painter, self._over, gold, 6, charcoal, 11)
+        # End arrows point in different directions, embedded in the letter flow.
+        self._arrow(
+            painter,
+            QPointF(left + bw * .83, top + bh * .25),
+            QPointF(left + bw * 1.10, top + bh * .04), silver, 11,
+        )
+        self._arrow(
+            painter,
+            QPointF(left + bw * .20, top + bh * .73),
+            QPointF(left - bw * .09, top + bh * 1.03), gold, 10,
+        )
+        self._arrow(
+            painter,
+            QPointF(left + bw * .70, top + bh * .84),
+            QPointF(left + bw * .91, top + bh * 1.04), gold, 8,
+        )
         painter.restore()
 
-        # Tip directions derive from the outgoing connector segments.
-        self._arrow(painter, (339, 12), (1, -.45), gold, 5)
-        self._arrow(painter, (334, 98), (1, .25), silver, 5)
-        self._arrow(painter, (-4, 96), (-1, .47), gold, 5)
-        self._arrow(painter, (334, 11), (1, -.64), gold, 4)
-        # A few ink cuts inside the letterforms signal spray/tag treatment
-        # without colors, characters, crowns or decorative clutter.
-        painter.setPen(QPen(QColor("#756953"), 2))
-        painter.drawLine(QPointF(94, 10), QPointF(120, 0))
-        painter.drawLine(QPointF(211, 101), QPointF(236, 91))
+        # Crisp two-ink cross arrows in the margins; no crown, square or badge.
+        self._arrow(
+            painter, QPointF(w * .07, h * .22), QPointF(w * .21, h * .10),
+            QColor("#ad9162"), 2.0
+        )
+        self._arrow(
+            painter, QPointF(w * .74, h * .84), QPointF(w * .96, h * .68),
+            QColor("#d6d8d7"), 2.0
+        )
         painter.end()
-
 
 def fluxor_app_icon():
     """Transparent F insignia; no old square photograph or colored badge."""
