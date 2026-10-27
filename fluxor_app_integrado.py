@@ -350,15 +350,21 @@ class FluxorIntegrado(QWidget):
             self.plano = None
             self.saida = resultado["destino_base"]
             self.logs.append(f"Copiados: {resultado['total_copiados']}")
-            self.logs.append(f"Idênticos ignorados: {resultado.get('total_ignorados', 0)}")
-            self.logs.append(f"Nomes alternativos: {resultado.get('total_renomeados', 0)}")
+            if resultado.get("acrescentar"):
+                self.logs.append(f"Idênticos ignorados: {resultado.get('total_ignorados', 0)}")
+                self.logs.append(f"Nomes alternativos: {resultado.get('total_renomeados', 0)}")
+                self.logs.append("Para acrescentar outra pasta, escolha uma nova origem; o destino será mantido.")
             self.logs.append(f"Erros: {resultado['total_erros']}")
             self.logs.append(f"Cancelado: {resultado['cancelado']}")
             self.logs.append(f"Destino: {self.saida}")
             for erro in resultado["erros"][:100]:
                 self.logs.append(f"ERRO: {erro['origem']} — {erro['erro']}")
-            self.status.setText("Cancelado." if resultado["cancelado"] else
-                                "Concluído com erros." if resultado["total_erros"] else "Concluído.")
+            self.status.setText(
+                "Cancelado." if resultado["cancelado"] else
+                "Concluído com erros." if resultado["total_erros"] else
+                "Acréscimo concluído. Escolha outra origem para continuar."
+                if resultado.get("acrescentar") else "Concluído."
+            )
             self.eta.setText("Operação finalizada; confira o relatório.")
             if resultado["total_encontrados"] == 0:
                 self.barra.setValue(100)
