@@ -9,7 +9,8 @@ from fluxor_core.classifier import classificar_arquivo, obter_extensao
 from fluxor_core.organizer import validar_pastas
 from fluxor_core.merge import require_safe_target, ensure_no_links, candidates, matching_content, preview_entries
 
-MODOS = ("Por tipo", "Por extensão", "Por ano", "Por ano e mês")
+MODOS = ("Por tipo", "Por extensão", "Por ano", "Por ano e mês",
+         "Por tipo e ano", "Por tipo, ano e mês")
 
 
 def _categoria(item, modo):
@@ -17,10 +18,17 @@ def _categoria(item, modo):
         return classificar_arquivo(item)
     if modo == "Por extensão":
         return obter_extensao(item)
+    # Uses file modification date. Metadata capture date/EXIF is not presumed.
     data = datetime.fromtimestamp(item.stat().st_mtime)
     if modo == "Por ano":
         return str(data.year)
-    return f"{data.year}/{data.month:02d}"
+    if modo == "Por ano e mês":
+        return f"{data.year}/{data.month:02d}"
+    if modo == "Por tipo e ano":
+        return str(Path(classificar_arquivo(item)) / str(data.year))
+    if modo == "Por tipo, ano e mês":
+        return str(Path(classificar_arquivo(item)) / str(data.year) / f"{data.month:02d}")
+    raise ValueError("Modo de organização não reconhecido.")
 
 
 def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, acrescentar=False):
