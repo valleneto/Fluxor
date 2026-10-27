@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QCoreApplication, QEvent
 
 from fluxor_brand import FluxorWordmark
 from fluxor_mural import FluxorMural
@@ -74,7 +75,12 @@ def main():
         assert window.library.table.rowCount() == 1
         assert original.read_bytes() == b"this-is-only-a-synthetic-fixture"
         window.close()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
+        del window
+        app.quit()
+        del app
 
     print("OS018 matte/silver/gold wordmark, alternating sand sweeps and safety passed")
 
