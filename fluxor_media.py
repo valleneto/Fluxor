@@ -3,7 +3,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QUrl, QProcess
+from PySide6.QtCore import Qt, QTimer, QUrl, QProcess, Signal
 from PySide6.QtGui import QPixmap, QImageReader
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QFileDialog
@@ -12,9 +12,12 @@ from fluxor_core.media_policy import preview_allowed, media_kind, cloud_risk
 
 
 class MediaPreview(QWidget):
-    """Only the selected file is decoded; motion player is loaded on first click."""
-    def __init__(self, parent=None):
+    """Only selected local files are previewed; no persistent thumbnails."""
+    close_requested = Signal()
+
+    def __init__(self, parent=None, embedded=False):
         super().__init__(parent)
+        self.embedded = embedded
         self.selected = None
         self.player = None
         self.output = None
@@ -32,9 +35,17 @@ class MediaPreview(QWidget):
         layout = QVBoxLayout(self)
         self.setObjectName("mediaPanel")
         self.setAcceptDrops(True)
-        self.heading = QLabel("VISUALIZADOR · INSPECTOR")
+        self.heading = QLabel("INSPECTOR · Arquivo selecionado")
         self.heading.setObjectName("eyebrow")
-        layout.addWidget(self.heading)
+        header = QHBoxLayout()
+        header.addWidget(self.heading)
+        header.addStretch()
+        self.close_button = QPushButton("Fechar ×")
+        self.close_button.setToolTip("Fechar Inspector e voltar à lista completa")
+        self.close_button.clicked.connect(self.close_requested.emit)
+        self.close_button.setVisible(embedded)
+        header.addWidget(self.close_button)
+        layout.addLayout(header)
         self.stack = QStackedWidget()
         self.picture = QLabel("Selecione uma imagem ou vídeo.")
         self.picture.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -56,7 +67,8 @@ class MediaPreview(QWidget):
             controls.addWidget(button)
         layout.addLayout(controls)
         layout.addWidget(self.pick_button)
-        self.note = QLabel("Selecione na Biblioteca, arraste mídia para cá ou clique Escolher arquivo.")
+        self.pick_button.setVisible(not embedded)
+        self.note = QLabel("Selecione um arquivo na Biblioteca.")
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         self.metadata = QLabel("Nenhum arquivo selecionado.")
@@ -64,6 +76,19 @@ class MediaPreview(QWidget):
         self.metadata.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.metadata.setStyleSheet("color: #b5ccdc; font-size: 12px; padding-top: 4px;")
         layout.addWidget(self.metadata)
+        self.update_controls()
+
+    def reset_selection(self):
+        """Release all previews and return to an unselected Inspector state."""
+        self.stop_motion()
+        self.cancel_thumbnail()
+        self.generation += 1
+        self.selected = None
+        self.picture.clear()
+        self.picture.setText("Selecione um arquivo na Biblioteca.")
+        self.metadata.setText("Nenhum arquivo selecionado.")
+        self.note.setText("A lista ocupa toda a área até uma seleção.")
+        self.stack.setCurrentWidget(self.picture)
         self.update_controls()
 
     def pick_file(self):
@@ -98,7 +123,7 @@ class MediaPreview(QWidget):
             return
         name, category, project, size, modified, path = values
         self.metadata.setText(
-            f"{name}\n{category} · {project} · {size} bytes\n"
+            f"{name}\n{category} · {project} · {size}\n"
             f"Modificado em {modified}\n{path}"
         )
 
@@ -109,22 +134,30 @@ class MediaPreview(QWidget):
         self.selected = str(path) if path else None
         self.metadata.setText(self.selected if self.selected else "Nenhum arquivo selecionado.")
         self.picture.clear()
-        self.picture.setText("Selecione Mostrar quadro para carregar a prévia.")
+        kind = media_kind(self.selected) if self.selected else "other"
+        self.picture.setText("Prévia sob demanda" if kind in ("image", "video", "document") else "Informações do arquivo")
         self.stack.setCurrentWidget(self.picture)
         self.note.setText("Arquivo selecionado: " + Path(self.selected).name if self.selected else "Selecione ou arraste uma imagem/vídeo.")
         self.update_controls()
-        if self.selected and media_kind(self.selected) == "image" and preview_allowed(self.selected):
-            QTimer.singleShot(0, self.show_still)
+        if self.selected and kind in ("image", "document") and preview_allowed(self.selected):
+            if kind == "image" or sys.platform == "darwin":
+                QTimer.singleShot(0, self.show_still)
+        elif self.selected and kind == "other":
+            self.note.setText("Metadados disponíveis. Abra o arquivo no aplicativo padrão com duplo clique.")
 
     def update_controls(self):
         kind = media_kind(self.selected) if self.selected else "other"
-        self.still_button.setEnabled(kind in ("image", "video"))
+        self.still_button.setVisible(kind in ("image", "video", "document"))
+        self.still_button.setText("Atualizar prévia" if kind in ("image", "document") else "Mostrar quadro")
+        self.still_button.setEnabled(kind in ("image", "video") or (kind == "document" and sys.platform == "darwin"))
+        self.motion_button.setVisible(kind == "video")
         self.motion_button.setEnabled(kind == "video")
+        self.stop_button.setVisible(kind == "video")
         self.stop_button.setEnabled(self.player is not None and (self.timer.isActive() or self.start_timeout.isActive()))
         if self.selected and cloud_risk(self.selected):
             self.still_button.setEnabled(False)
             self.motion_button.setEnabled(False)
-            self.note.setText("Arquivo possivelmente em nuvem: prévia automática bloqueada.")
+            self.note.setText("Possível arquivo em nuvem: prévia bloqueada para evitar downloads.")
 
     def show_still(self):
         if not self.selected or not preview_allowed(self.selected):
@@ -189,7 +222,7 @@ class MediaPreview(QWidget):
         images = list(Path(self.thumbnail_folder.name).glob("*.png")) if self.thumbnail_folder else []
         pixmap = QPixmap(str(images[0])) if code == 0 and images else QPixmap()
         if pixmap.isNull():
-            self.note.setText("Quadro indisponível. Abra o vídeo pelo aplicativo padrão.")
+            self.note.setText("Prévia indisponível. Abra no aplicativo padrão com duplo clique.")
         else:
             self.picture.setPixmap(pixmap.scaled(480, 245, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             self.note.setText("Quadro gerado sob demanda; cache temporário removido.")
