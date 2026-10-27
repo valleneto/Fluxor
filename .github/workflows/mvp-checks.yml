@@ -87,4 +87,14 @@ jobs:
       - name: OS017 street mural and navigation GUI regression
         env:
           QT_QPA_PLATFORM: offscreen
+          FLUXOR_OS017_SCREENSHOT: artifacts/fluxor-os017-mural.png
         run: python -m tests.test_os017_gui
+
+      - name: Preserve OS017 Qt-rendered mural preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxor-os017-mural-preview
+          path: artifacts/fluxor-os017-mural.png
+          if-no-files-found: ignore
+          retention-days: 7
