@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QCoreApplication, QEvent
 from fluxor_mural import FluxorMural
 from fluxor_iniciar import Inicio
 from fluxor_core.library import index_folder
@@ -62,13 +63,14 @@ def main():
 
         assert sample.read_bytes() == b"original-intact"
         window.close()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
-        # Release transient native Qt frame and references deterministically
-        # before the QApplication destructor runs on the CI interpreter.
         del mural, window
         gc.collect()
         app.quit()
-        app.processEvents()
+        del app
+        gc.collect()
     print("OS017 renderer, motion state, navigation and file safety passed")
 
 
