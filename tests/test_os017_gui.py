@@ -33,7 +33,13 @@ def main():
         assert mural.width() > 240
         # One Qt paint-smoke; repeated pixmap conversions on some Linux Qt
         # builds can crash the Python interpreter *after* a successful test.
-        assert not mural.grab().isNull()
+        frame = mural.grab()
+        assert not frame.isNull()
+        screenshot = os.environ.get("FLUXOR_OS017_SCREENSHOT")
+        if screenshot:
+            image_path = Path(screenshot)
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            assert frame.save(str(image_path), "PNG")
         before = mural.phase
         mural.advance()
         assert mural.phase != before, "animation timer must advance its phase"
