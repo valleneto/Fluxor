@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 import os
 import shutil
-import stat
+import stat as filemode
 
 from fluxor_core.criteria import (MODOS_LEGADOS, normalizar_modo, categoria_para,
                                   conferir_politica, registrar_politica)
@@ -80,7 +80,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 continue
             try:
                 info = item.stat()
-                if not stat.S_ISREG(info.st_mode):
+                if not filemode.S_ISREG(info.st_mode):
                     continue
                 categoria = _categoria(item, modo)
                 tamanho = info.st_size
