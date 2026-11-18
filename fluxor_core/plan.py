@@ -9,7 +9,7 @@ import stat as filemode
 from fluxor_core.criteria import (MODOS_LEGADOS, normalizar_modo, categoria_para,
                                   conferir_politica, registrar_politica)
 from fluxor_core.organizer import validar_pastas
-from fluxor_core.atomic_copy import copy_verified, recover_transactions, JOURNAL_DIR, TEMP_PREFIX
+from fluxor_core.atomic_copy import copy_verified, recover_transactions, JOURNAL_DIR, is_managed_temp_name
 from fluxor_core.merge import require_safe_target, ensure_no_links, candidates, matching_content, preview_entries
 
 MODOS = MODOS_LEGADOS
@@ -74,7 +74,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
             and not d.lower().endswith((".app", ".bundle", ".photoslibrary", ".pkg"))
         ) if recursivo else []
         for nome in sorted(nomes):
-            if nome.startswith(TEMP_PREFIX) or nome == ".fluxor-organizacao.json":
+            if is_managed_temp_name(nome) or nome == ".fluxor-organizacao.json":
                 continue
             if cancelar and cancelar():
                 raise InterruptedError("Prévia interrompida pelo usuário.")
