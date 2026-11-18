@@ -29,6 +29,16 @@ _DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 _STATES = {"planned", "transferring", "verified", "collision", "published", "confirmed", "blocked"}
 _JOURNAL_RE = re.compile(r"^[a-f0-9]{32}\.jsonl$")
 
+_MANAGED_TEMP_RE = re.compile(
+    "^" + re.escape(TEMP_PREFIX) + "[a-f0-9]{32}" + re.escape(TEMP_SUFFIX) + "$"
+)
+
+
+def is_managed_temp_name(name):
+    """Only files with our exact UUID-based temporary naming convention."""
+    return bool(_MANAGED_TEMP_RE.fullmatch(name))
+
+
 
 def _fsync_dir(folder):
     """Fail closed if a filesystem refuses directory durability."""
