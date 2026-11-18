@@ -29,7 +29,10 @@ def main():
         # Same size but different bytes must fail SHA integrity check.
         from unittest.mock import patch as patcher
         original_hash = sha256_arquivo
-        with patcher("fluxor_core.plan.sha256_arquivo", side_effect=["a", "b"]):
+        # OS024-A moved the actual streamed checksum verification into
+        # atomic_copy; inject mismatch at the integrity boundary, not an
+        # obsolete plan.sha256_arquivo symbol.
+        with patcher("fluxor_core.atomic_copy._hash_file", side_effect=["a", "b"]):
             altered = executar_plano(plan)
         assert altered["total_copiados"] == 0
         assert altered["total_erros"] == 1
