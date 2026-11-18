@@ -4,6 +4,7 @@ Only checks the matching output category; never scans or modifies the whole
 destination tree. All decisions are revalidated at copy time by plan.py.
 """
 from pathlib import Path
+from fluxor_core.atomic_copy import is_managed_temp_name
 
 FOLDER_NAME = "Fluxor_Organizado"
 
@@ -47,6 +48,9 @@ def candidates(root, relative_parent, cancel=None):
     for entry in sorted(folder.iterdir(), key=lambda p: p.name.casefold()):
         if cancel and cancel():
             raise InterruptedError("Prévia interrompida.")
+        # Staging inodes are never destination copies or duplicate candidates.
+        if is_managed_temp_name(entry.name):
+            continue
         reserved.add(entry.name.casefold())
         if entry.is_symlink() or not entry.is_file():
             continue
