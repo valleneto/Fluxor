@@ -9,6 +9,7 @@ import stat as filemode
 from fluxor_core.criteria import (MODOS_LEGADOS, normalizar_modo, categoria_para,
                                   conferir_politica, registrar_politica)
 from fluxor_core.organizer import validar_pastas
+from fluxor_core.atomic_copy import copy_verified, recover_transactions, JOURNAL_DIR, TEMP_PREFIX
 from fluxor_core.merge import require_safe_target, ensure_no_links, candidates, matching_content, preview_entries
 
 MODOS = MODOS_LEGADOS
@@ -69,10 +70,12 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
             seen_dirs.add(identity)
         subpastas[:] = sorted(
             d for d in subpastas
-            if not (Path(pasta) / d).is_symlink()
+            if d != JOURNAL_DIR and not (Path(pasta) / d).is_symlink()
             and not d.lower().endswith((".app", ".bundle", ".photoslibrary", ".pkg"))
         ) if recursivo else []
         for nome in sorted(nomes):
+            if nome.startswith(TEMP_PREFIX) or nome == ".fluxor-organizacao.json":
+                continue
             if cancelar and cancelar():
                 raise InterruptedError("Prévia interrompida pelo usuário.")
             item = Path(pasta) / nome
@@ -171,6 +174,12 @@ def executar_plano(plano, progresso=None, cancelar=None):
     # process crashes cannot leave a mixed, unmarked collection.
     base.mkdir(parents=True, exist_ok=True)
     registrar_politica(base, plano.get("modo", "Por tipo"))
+    # Recovery verifies/publishes only fully prepared transactions.
+    # Incomplete, unpublished stages remain quarantined, not deleted.
+    # Any corrupt or ambiguous journal blocks new writing.
+    recovery = recover_transactions(base)
+    if any(item.get("status") == "blocked" for item in recovery):
+        raise ValueError("Journal anterior inconsistente. Cópia bloqueada; revisão necessária.")
     copiados = 0
     ignorados = 0
     renomeados = 0
@@ -236,36 +245,13 @@ def executar_plano(plano, progresso=None, cancelar=None):
                     if progresso:
                         progresso(indice, total)
                     continue
-            # Exclusively create names; never overwrite on collisions.
-            tentativas = 0
-            while True:
-                requested = relativo.name if acrescentar else arquivo.name
-                planned = Path(requested)
-                nome = requested if tentativas == 0 else f"{planned.stem} ({tentativas}){planned.suffix}"
-                saida = pasta / nome
-                try:
-                    with arquivo.open("rb") as fonte, saida.open("xb") as alvo:
-                        criado = True
-                        while True:
-                            if cancelar and cancelar():
-                                raise InterruptedError("Copia interrompida.")
-                            bloco = fonte.read(1024 * 1024)
-                            if not bloco:
-                                break
-                            alvo.write(bloco)
-                    break
-                except FileExistsError:
-                    tentativas += 1
-                    if tentativas > 10000:
-                        raise OSError("Muitos arquivos com nome repetido.")
-            shutil.copystat(arquivo, saida)
-            after = arquivo.stat()
-            if (after.st_size, after.st_mtime_ns, after.st_ino) != (before.st_size, before.st_mtime_ns, before.st_ino):
-                raise OSError("Origem mudou durante a cópia; resultado descartado.")
-            if after.st_size != saida.stat().st_size:
-                raise OSError("Tamanho copiado diferente do original.")
-            if sha256_arquivo(arquivo) != sha256_arquivo(saida):
-                raise OSError("SHA-256 da copia diferente do original.")
+            # OS024-A: stage, fsync and hash before POSIX no-clobber link(2).
+            # The final pathname is never opened for writing or replaced.
+            saida = copy_verified(
+                base, arquivo, pasta,
+                relativo.name if acrescentar else arquivo.name,
+                before, plano.get("modo", "Por tipo"), cancel=cancelar,
+            )
             copiados += 1
             different_name = saida.name != arquivo.name
             renomeados += int(different_name)
@@ -274,11 +260,8 @@ def executar_plano(plano, progresso=None, cancelar=None):
                 "status": "copiado_renomeado" if different_name else "copiado",
             })
         except (OSError, ValueError, InterruptedError) as erro:
-            if criado and saida is not None:
-                try:
-                    saida.unlink()
-                except OSError:
-                    pass
+            # Neither definitive files nor unverified temporary files are
+            # unlinked on error; the journal controls subsequent recovery.
             if isinstance(erro, InterruptedError):
                 cancelado = True
             else:

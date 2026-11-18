@@ -2,7 +2,7 @@ name: Fluxor MVP checks
 
 on:
   pull_request:
-    branches: [master, dev/inspector-contextual-20261026, dev/design-premium-os016, dev/visual-graffiti-os017, dev/zen-sand-luxury-os018, dev/merge-safe-brand-os019]
+    branches: [master, dev/inspector-contextual-20261026, dev/design-premium-os016, dev/visual-graffiti-os017, dev/zen-sand-luxury-os018, dev/merge-safe-brand-os019, dev/os022-restauro-visual-referencia-20261027]
   workflow_dispatch:
 
 jobs:
@@ -70,6 +70,9 @@ jobs:
 
       - name: OS021 ordered composition and fail-closed safety
         run: python -m tests.test_os021
+
+      - name: OS024-A T01-T22 fault-injection and idempotent recovery (synthetic)
+        run: python -m tests.test_os024a
 
       - name: OS014 synthetic 50k performance
         run: python -m tests.test_os014_performance
