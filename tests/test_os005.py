@@ -18,8 +18,6 @@ def main():
         assert result["total_copiados"] == 1 and result["total_erros"] == 0
         copy = destination / "Fluxor_Organizado" / "Imagens" / "foto.jpg"
         assert sha256_arquivo(copy) == sha256_arquivo(origin / "foto.jpg")
-        from fluxor_core.atomic_copy import recover_transactions
-        print("DEBUG_JOURNAL", recover_transactions(destination / "Fluxor_Organizado"), flush=True)
         with patch("fluxor_core.plan.shutil.disk_usage") as disk:
             disk.return_value.free = 0
             try:
