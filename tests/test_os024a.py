@@ -219,6 +219,21 @@ def T11():
                         acrescentar=True)
         assert plan["resumo_acrescimo"]["ignorados_identicos"] == 1
         assert executar_plano(plan)["total_ignorados"] == 1
+        # A synthetic orphan with the exact managed temp pattern MUST NEVER
+        # be interpreted as a committed duplicate in the same category.
+        category = Path(old["destino_base"]) / "Videos"
+        orphan = category / (TEMP_PREFIX + "f" * 32 + ".part")
+        orphan.write_bytes(b"uncommitted fixture")
+        pending_src = root / "orphan_input"
+        pending_src.mkdir()
+        (pending_src / "pending.mp4").write_bytes(b"uncommitted fixture")
+        pending = planejar(pending_src, Path(old["destino_base"]), "Por tipo",
+                          acrescentar=True)
+        assert pending["resumo_acrescimo"]["novos"] == 1, pending
+        assert pending["resumo_acrescimo"]["ignorados_identicos"] == 0
+        assert executar_plano(pending)["total_copiados"] == 1
+        assert orphan.read_bytes() == b"uncommitted fixture"
+
 
 
 def T12():
