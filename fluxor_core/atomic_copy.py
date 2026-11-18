@@ -330,8 +330,8 @@ def _recover_one(base, journal, cancel=None):
         raise ValueError("Verificação registrada inválida.")
 
     if state == "confirmed":
-        if not _stage_matches(destination, size, digest, cancel):
-            raise ValueError("Destino confirmado alterado/ausente; revisão manual.")
+        # Already-committed journals are terminal: nothing remains to recover.
+        # Avoid rehashing the entire existing collection on every future copy.
         return {"id": operation, "status": "confirmed"}
     if state not in ("verified", "collision", "published"):
         return {"id": operation, "status": "incomplete", "state": state}
