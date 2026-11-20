@@ -198,18 +198,21 @@ class MediaPreview(QWidget):
         self.note.setText("Quadro local carregado sob demanda; nenhum cache persistente.")
  
     def cancel_thumbnail(self):
-        if self.thumbnail_process is not None:
+        process = self.thumbnail_process
+        folder = self.thumbnail_folder
+        # Detach first: finished signal can call cancel_thumbnail recursively.
+        self.thumbnail_process = None
+        self.thumbnail_folder = None
+        if process is not None:
             try:
-                if self.thumbnail_process.state() != QProcess.ProcessState.NotRunning:
-                    self.thumbnail_process.kill()
-                    self.thumbnail_process.waitForFinished(100)
+                if process.state() != QProcess.ProcessState.NotRunning:
+                    process.kill()
+                    process.waitForFinished(100)
             except RuntimeError:
                 pass
-            self.thumbnail_process.deleteLater()
-            self.thumbnail_process = None
-        if self.thumbnail_folder is not None:
-            self.thumbnail_folder.cleanup()
-            self.thumbnail_folder = None
+            process.deleteLater()
+        if folder is not None:
+            folder.cleanup()
 
     def thumbnail_timeout(self, process):
         if process is self.thumbnail_process and process.state() != QProcess.ProcessState.NotRunning:
