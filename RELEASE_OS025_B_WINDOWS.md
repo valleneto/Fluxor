@@ -38,3 +38,11 @@ CI: https://github.com/valleneto/Fluxor/actions/runs/44742714596.
 - Abertura do temporário para flush após metadados em `r+b` **apenas no Windows**; `os.fsync` permanece obrigatório, sem fallback. POSIX permanece exatamente `rb`.
 - OS014 passa a comparar caminho resolvido de origem, sem alterar lógica de duplicatas.
 - Gate ainda depende de CI seguinte; sem distribuição, merge ou arquivos pessoais.
+
+## Terceira rodada — SHA b941767b75b7889f7198624ada8b50ab1e4fa3f4
+CI: https://github.com/valleneto/Fluxor/actions/runs/44742996663
+- UI Windows 6/6 PASS; NTFS primitives PASS.
+- Motor Windows 4/5 PASS: OS005, OS009, OS014 e OS021 aprovados.
+- OS020 falhou por `unittest.mock.patch` exigindo `os.statvfs`, atributo inexistente no Windows (falha do teste, não da rotina sob prova).
+- Corrigida apenas a fixture usando `create=True` para simular `os.statvfs`; continua validando o fail-closed para destino somente leitura.
+- Gates Windows 10/11 físicos e segurança NTFS/SMB completa ainda NÃO homologados.
