@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QPushButton, QMessageBox,
 )
 from fluxor_network import connect_smb
+from fluxor_core.windows_safety import reject_windows_reparse
 
 PAGE = 140
 
@@ -160,7 +161,8 @@ class SafeFolderPicker(QDialog):
         try:
             path = Path(requested).expanduser()
             if not path.is_absolute():
-                raise ValueError("Informe um caminho completo que comece por '/'.")
+                raise ValueError("Informe um caminho absoluto de pasta.")
+            reject_windows_reparse(path)
             # Refuse aliases/symlinks in any path component, to avoid Finder loops.
             if any(p.is_symlink() for p in (path, *path.parents)):
                 raise ValueError(
@@ -180,6 +182,10 @@ class SafeFolderPicker(QDialog):
                     for item in entries:
                         if token != self._ticket:
                             return
+                        try:
+                            reject_windows_reparse(item.path)
+                        except OSError:
+                            continue
                         if item.is_symlink() or not item.is_dir(follow_symlinks=False):
                             continue
                         name = item.name

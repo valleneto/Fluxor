@@ -17,6 +17,7 @@ import re
 import shutil
 import stat
 import uuid
+from fluxor_core.windows_safety import reject_windows_reparse, require_local_ntfs
 
 JOURNAL_DIR = ".fluxor-journal"
 TEMP_PREFIX = ".fluxor-tmp-"
@@ -48,6 +49,7 @@ def _flush_directory_windows(folder):
     import ctypes
 
     directory = Path(folder)
+    reject_windows_reparse(directory)
     if not directory.is_dir() or directory.is_symlink():
         raise OSError("Pasta de sincronização inválida.")
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -89,6 +91,8 @@ def _fsync_dir(folder):
 
 def _safe_base(base):
     base = Path(base)
+    require_local_ntfs(base)
+    reject_windows_reparse(base)
     if not base.is_dir() or base.is_symlink() or base.resolve() != base:
         raise ValueError("Raiz da coleção indisponível, relativa ou simbólica.")
     return base
@@ -97,6 +101,7 @@ def _safe_base(base):
 def _safe_category(base, folder):
     base = _safe_base(base)
     folder = Path(folder)
+    reject_windows_reparse(folder)
     if folder.is_symlink() or not folder.is_dir() or folder.resolve() != folder:
         raise ValueError("Pasta de publicação indisponível ou simbólica.")
     if folder != base and base not in folder.parents:
@@ -107,6 +112,7 @@ def _safe_category(base, folder):
 def _journal_directory(base):
     base = _safe_base(base)
     folder = base / JOURNAL_DIR
+    reject_windows_reparse(folder)
     if folder.is_symlink():
         raise ValueError("Journal simbólico: escrita bloqueada.")
     folder.mkdir(exist_ok=True)
@@ -121,6 +127,7 @@ def _append(journal, state, seq, **fields):
         raise ValueError("Estado desconhecido no journal.")
     event = {"seq": seq, "state": state, **fields}
     line = (json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    reject_windows_reparse(journal)
     fd = os.open(str(journal), os.O_WRONLY | os.O_APPEND | _NOFOLLOW)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
@@ -162,6 +169,7 @@ def _source_identity(file_stat):
 
 
 def _assert_source(source, expected):
+    reject_windows_reparse(source)
     if source.is_symlink():
         raise OSError("Origem virou um link simbólico.")
     current = source.stat()
@@ -171,6 +179,7 @@ def _assert_source(source, expected):
 
 
 def _hash_file(path, cancel=None):
+    reject_windows_reparse(path)
     sha = hashlib.sha256()
     fd = os.open(str(path), os.O_RDONLY | _NOFOLLOW)
     try:
@@ -200,6 +209,7 @@ def _final_name(folder, requested, counter):
 
 
 def _stage_matches(path, expected_size, expected_sha, cancel=None):
+    reject_windows_reparse(path)
     if path.is_symlink() or not path.is_file():
         return False
     before = path.stat()
@@ -215,6 +225,8 @@ def _owned_stage_cleanup(stage, final, ident):
     """Only unlink the journal-owned temp inode after proven hard-link publication."""
     if not stage.exists():
         return
+    reject_windows_reparse(stage)
+    reject_windows_reparse(final)
     if stage.is_symlink() or final.is_symlink() or not final.is_file():
         raise OSError("Recuperação: temporário ou destino simbólico.")
     a, b = stage.stat(), final.stat()
@@ -321,6 +333,7 @@ def copy_verified(base, source, folder, requested, before, mode, cancel=None,
 
 
 def _read_journal(path):
+    reject_windows_reparse(path)
     if path.is_symlink() or not path.is_file() or path.stat().st_size > _JOURNAL_MAX:
         raise ValueError("Journal inválido, simbólico ou excessivo.")
     content = path.read_bytes()
@@ -363,6 +376,8 @@ def _recover_one(base, journal, cancel=None):
             or destination.name.startswith(TEMP_PREFIX)):
         raise ValueError("Journal aponta para caminho não autorizado.")
     folder = _safe_category(base, destination.parent)
+    reject_windows_reparse(stage)
+    reject_windows_reparse(destination)
     if stage.is_symlink() or destination.is_symlink():
         raise ValueError("Journal aponta para link simbólico.")
     state = records[-1]["state"]
@@ -426,6 +441,7 @@ def recover_transactions(base, cancel=None):
     """
     base = _safe_base(base)
     directory = base / JOURNAL_DIR
+    reject_windows_reparse(directory)
     if not directory.exists():
         return []
     if directory.is_symlink() or not directory.is_dir():
