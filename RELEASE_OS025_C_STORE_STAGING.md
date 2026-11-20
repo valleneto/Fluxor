@@ -35,3 +35,9 @@ Referências:
 - Teste legado OS020 falhou: symlink comum no conjunto sintetico passou a marcar previa como incompleta.
 - Correcao minima: symlink identificado continua ignorado como na OS020; junction e reparse nao-symlink continuam bloqueando a previa.
 - Nova execucao CI obrigatoria; nao publicar ate todos os gates PASS.
+
+## CI apos ajuste de symlink — SHA 390fcf5dd4f2109e0c067c3a447a1618f15ac886
+- Seguranca Windows PASS; regressao Linux POSIX PASS.
+- GUI014/GUI015 passaram. GUI020 exigia a frase antiga "link simbolico", enquanto o novo bloqueio explicito de reparse point usa mensagem mais tecnica.
+- Atualizada apenas a assercao da fixture para aceitar ambas as mensagens de bloqueio; sem relaxar deteccao e sem alterar interface.
+- Repetir CI antes de autorizar qualquer build.
