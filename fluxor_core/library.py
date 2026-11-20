@@ -144,14 +144,14 @@ def search_files(database_path, text="", category=None, project=None, limit=500,
     order = {'name':'name COLLATE NOCASE', 'size':'size', 'modified':'modified', 'category':'category COLLATE NOCASE', 'project':'project COLLATE NOCASE'}.get(sort, 'modified')
     query += ' ORDER BY ' + order + (' DESC' if descending else ' ASC') + ', path LIMIT ? OFFSET ?'
     params.extend((limit, max(0, int(offset))))
-    with sqlite3.connect(database_path) as con:
+    with closing(sqlite3.connect(database_path)) as con:
         rows = con.execute(query, params).fetchall()
     return [dict(zip(("path", "name", "category", "extension", "size", "modified", "project"), row))
             for row in rows]
 
 
 def catalog_summary(database_path):
-    with sqlite3.connect(database_path) as con:
+    with closing(sqlite3.connect(database_path)) as con:
         total, size = con.execute("SELECT COUNT(*), COALESCE(SUM(size), 0) FROM files").fetchone()
         categories = con.execute(
             "SELECT category, COUNT(*) FROM files GROUP BY category ORDER BY COUNT(*) DESC"
@@ -165,7 +165,7 @@ def catalog_summary(database_path):
 
 def storage_diagnosis(database_path, limit=10):
     """Metadata-only diagnostics, no file reads."""
-    with sqlite3.connect(database_path) as con:
+    with closing(sqlite3.connect(database_path)) as con:
         total, size = con.execute("SELECT COUNT(*), COALESCE(SUM(size),0) FROM files").fetchone()
         categories = con.execute(
             "SELECT category, COUNT(*), SUM(size) FROM files "

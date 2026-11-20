@@ -5,6 +5,7 @@ Only synthetic files in TemporaryDirectory; never touches the user's library.
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -40,7 +41,10 @@ def main():
         assert index_folder(source, db)["total"] == 4
 
         app = QApplication.instance() or QApplication([])
-        window = Inicio()
+        # HOME alone does not override Path.home() on Windows (USERPROFILE).
+        # Redirect only the synthetic fixture's initial path lookup.
+        with patch('pathlib.Path.home', return_value=Path(temp)):
+            window = Inicio()
         window.show()
         window.resize(980, 610)
         window.navigate(1)
@@ -70,7 +74,7 @@ def main():
 
         library.table.selectRow(find_row(library.table, "sample.png"))
         app.processEvents()
-        assert library.media.selected == str(photo)
+        assert library.media.selected == str(photo.resolve())
         assert library.media.isVisible()
         pixmap = library.media.picture.pixmap()
         assert pixmap is not None and not pixmap.isNull()

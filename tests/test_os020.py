@@ -99,7 +99,7 @@ def main():
         assert search_files(db, limit=100) == before
 
         with patch("fluxor_core.plan.os.statvfs",
-                   return_value=SimpleNamespace(f_flag=1)):
+                   return_value=SimpleNamespace(f_flag=1), create=True):
             try:
                 verificar_espaco(plan)
             except PermissionError as error:

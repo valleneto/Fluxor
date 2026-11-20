@@ -83,7 +83,7 @@ def test_cloud_skip_and_local_equality():
         database = base / "catalog.sqlite3"
         library.index_folder(source, database)
         report = find_exact_duplicates(database)
-        assert any(set(group["paths"]) == {str(source / "a.dat"), str(source / "b.dat")} for group in report["groups"])
+        assert any(set(group["paths"]) == {str(source.resolve() / "a.dat"), str(source.resolve() / "b.dat")} for group in report["groups"])
         assert all("CloudStorage" not in path for group in report["groups"] for path in group["paths"])
         assert sum("CloudStorage" in item["path"] for item in report["errors"]) == 2
         assert all((source / name).read_bytes() == b"same content" for name in ("a.dat", "b.dat"))
@@ -103,7 +103,7 @@ def test_changed_since_index():
         os.utime(changed, ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 100_000_000))
         report = find_exact_duplicates(database)
         assert report["groups"] == []
-        assert any(item["path"] == str(changed) and "alterado" in item["error"] for item in report["errors"])
+        assert any(item["path"] == str(changed.resolve()) and "alterado" in item["error"] for item in report["errors"])
 
 
 def test_copy_snapshot():

@@ -93,7 +93,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
             arquivos.append({
                 "origem": str(item),
                 "categoria": categoria,
-                "destino_relativo": str(Path(categoria) / item.name),
+                "destino_relativo": (Path(categoria) / item.name).as_posix(),
                 "tamanho": tamanho,
                 "modified_ns": info.st_mtime_ns,
             })

@@ -1,5 +1,6 @@
 """Exact duplicate report: size prefilter, streaming SHA-256, no deletion."""
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from collections import defaultdict
 import hashlib
@@ -20,7 +21,7 @@ def _hash_with_cancel(path, cancel):
 
 
 def find_exact_duplicates(database_path, cancel=None, progress=None):
-    with sqlite3.connect(database_path) as con:
+    with closing(sqlite3.connect(database_path)) as con:
         rows = con.execute(
             "SELECT path, size, modified FROM files WHERE size IN "
             "(SELECT size FROM files GROUP BY size HAVING COUNT(*) > 1) "

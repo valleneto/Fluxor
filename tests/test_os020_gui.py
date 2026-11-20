@@ -37,7 +37,7 @@ def main():
         picker = SafeFolderPicker(initial=str(path))
         picker.show()
         wait_until(app, lambda: not picker._busy)
-        assert picker._path == str(path)
+        assert picker._path == str(path.resolve())
         assert picker.folders.count() == PAGE
         assert picker.more_button.isVisible()
         assert all("loop" not in picker.folders.item(n).text()
@@ -61,7 +61,7 @@ def main():
         wait_until(app, lambda: not picker._busy)
         picker._choose()
         wait_until(app, lambda: picker.result() == QDialog.DialogCode.Accepted)
-        assert picker.selected_path == str(path)
+        assert picker.selected_path == str(path.resolve())
 
         window = Inicio()
         window.show()

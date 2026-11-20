@@ -1,0 +1,57 @@
+# FLUXOR — OS025-B Windows/NTFS | Diagnóstico controlado
+**Base aprovada OS024-C:** `9f0a109d9adb52bc4fc469327a5fc4c56ba07a45`.
+**Base PR14:** `e70ece689e681cba1687e6b70995c4487ea819ab`.
+**Branch OS025-B:** `dev/os025b-windows-ntfs-isolado-20261120`.
+
+## Hipóteses e alterações mínimas
+1. `fluxor_core/library.py`: três consultas SQLite usavam contexto transacional que NÃO fecha conexão. Aplicado `contextlib.closing` para liberar arquivo no Windows; indexação já usava `closing`. A função não altera SQL nem o catálogo.
+2. GUI014/015: fixtures isoladas usam `HOME`, mas `Path.home()` em Windows prefere `USERPROFILE`. Fix de teste restrito ao início da janela com `unittest.mock.patch`.
+3. GUI020: o seletor retorna caminho canônico, enquanto teste comparava o caminho original, que pode conter nomes Windows 8.3. Expectativa corrigida para `str(path.resolve())`; nenhum relaxamento de segurança.
+4. Teste de primitiva Windows: hardlink exclusivo sem overwrite + tentativa de flush de diretório usando `CreateFileW`/`FlushFileBuffers` em arquivo **sintético descartável**. Prova de chamada de API não equivale a garantia de persistência após queda de energia; falhar de modo controlado quando não suportado.
+
+## Gates obrigatórios
+- Regressão UI Windows, SQLite e motor em CI nativo Windows Server 2022.
+- NÃO alterar `fluxor_core/atomic_copy.py` antes de confirmação da primitiva NTFS. Não criar fallback inseguro.
+- Sem repetir T01–T22 integralmente; sem testes SMB reais, arquivos pessoais, distribuições ou instalador.
+- Sem merge ou alteração de `master` e PRs #12/#13/#14.
+- **Status:** diagnóstico pendente de CI; NO-GO para beta externa.
+
+## Execução intermediária (SHA 9866bdacd7d0bc3f010d8f5ae698099a2d355fdd)
+CI Windows: https://github.com/valleneto/Fluxor/actions/runs/44742245805
+- **NTFS sintético:** hardlink exclusivo sem overwrite PASS; Win32 CreateFileW/FlushFileBuffers no diretório PASS. Sem alegação de durabilidade absoluta em perda de energia.
+- GUI020 passou após corrigir comparação canônica; GUI014/015 avançaram até comparação canônica do arquivo, pendente de ajuste do teste.
+- Motor ainda NO-GO devido ausência de _fsync_dir Windows e retorno de caminhos com separadores Windows no plano.
+- Duplicatas OS014 falharam por expectativa de caminho canônico e SQLite auxiliar aberto.
+## Segunda correção (nova regressão pendente)
+- `fluxor_core/atomic_copy.py`: usa exatamente WinAPI testada para flush de diretório no Windows, **sem no-op**; POSIX permanece idêntico.
+- `fluxor_core/plan.py`: caminhos relativos públicos padronizados com `.as_posix()`; estrutura real usa `pathlib.Path` normalmente.
+- `fluxor_core/duplicates.py`: fechamento garantido de conexão SQLite após SELECT.
+- Ajustadas somente as expectativas canônicas de GUI014/015 e de duplicatas OS014.
+- Novos testes sintéticos de CI decidirão o próximo gate. Nenhum merge/instalador/publicação.
+
+## Segunda rodada — SHA 3c8440d8509e10971abfd85b3ee821b3da7622fe
+CI: https://github.com/valleneto/Fluxor/actions/runs/44742714596.
+- UI **6/6 PASS**; NTFS primitives PASS.
+- Motor OS009 PASS; OS005/020/021 falharam com `[Errno 9] Bad file descriptor`, causado por `os.fsync` em arquivo temporário aberto somente para leitura no Windows, após copiar metadados.
+- OS014 avançou (sem `WinError 32`); falhou somente em expectativa de caminho não canônico.
+### Terceiro ajuste
+- Abertura do temporário para flush após metadados em `r+b` **apenas no Windows**; `os.fsync` permanece obrigatório, sem fallback. POSIX permanece exatamente `rb`.
+- OS014 passa a comparar caminho resolvido de origem, sem alterar lógica de duplicatas.
+- Gate ainda depende de CI seguinte; sem distribuição, merge ou arquivos pessoais.
+
+## Terceira rodada — SHA b941767b75b7889f7198624ada8b50ab1e4fa3f4
+CI: https://github.com/valleneto/Fluxor/actions/runs/44742996663
+- UI Windows 6/6 PASS; NTFS primitives PASS.
+- Motor Windows 4/5 PASS: OS005, OS009, OS014 e OS021 aprovados.
+- OS020 falhou por `unittest.mock.patch` exigindo `os.statvfs`, atributo inexistente no Windows (falha do teste, não da rotina sob prova).
+- Corrigida apenas a fixture usando `create=True` para simular `os.statvfs`; continua validando o fail-closed para destino somente leitura.
+- Gates Windows 10/11 físicos e segurança NTFS/SMB completa ainda NÃO homologados.
+
+## Quarta rodada — SHA d8e20474453129628dcd5032747d7f4afc21e612
+CI: https://github.com/valleneto/Fluxor/actions/runs/44743218537
+- Windows UI **6/6 PASS**; motor **5/5 PASS**; Win32 NTFS primitives **PASS**.
+- Última falha era da fixture que simulava statvfs inexistente em Windows. Corrigida usando `patch(create=True)` mantendo teste de fail-closed.
+## Próximos gates dentro da OS025-B
+- Oito novos cenários Windows com arquivos sintéticos: cópia/SHAs, colisão no-clobber, cancelamento, recuperação após verified/link, adulteração, simultaneidade e volume sem hardlink.
+- Regressão POSIX Linux para não afetar OS022/OS024-C e fluxo de cópia.
+- Ainda não há teste de Windows 10/11 físico, reinício abrupto real, SMB/NTFS de terceiros ou instalador. NO-GO beta externo até esses gates.
