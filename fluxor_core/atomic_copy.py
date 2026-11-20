@@ -40,8 +40,44 @@ def is_managed_temp_name(name):
 
 
 
+def _flush_directory_windows(folder):
+    """Call the tested Win32 directory flush; fail closed on every API error.
+
+    This does NOT establish power-loss durability on NTFS, SMB or any drive.
+    """
+    import ctypes
+
+    directory = Path(folder)
+    if not directory.is_dir() or directory.is_symlink():
+        raise OSError("Pasta de sincronização inválida.")
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.argtypes = [
+        ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
+        ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p,
+    ]
+    kernel.CreateFileW.restype = ctypes.c_void_p
+    kernel.FlushFileBuffers.argtypes = [ctypes.c_void_p]
+    kernel.FlushFileBuffers.restype = ctypes.c_int
+    kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel.CloseHandle.restype = ctypes.c_int
+    handle = kernel.CreateFileW(
+        str(directory), 0x40000000, 0x00000007, None, 3, 0x02000000, None
+    )
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        if not kernel.FlushFileBuffers(handle):
+            raise ctypes.WinError(ctypes.get_last_error())
+    finally:
+        if not kernel.CloseHandle(handle):
+            raise ctypes.WinError(ctypes.get_last_error())
+
+
 def _fsync_dir(folder):
-    """Fail closed if a filesystem refuses directory durability."""
+    """Fail closed on both POSIX and Windows; no silent durability downgrade."""
+    if os.name == "nt":
+        _flush_directory_windows(folder)
+        return
     fd = os.open(str(folder), os.O_RDONLY | _NOFOLLOW | _DIRECTORY)
     try:
         if not stat.S_ISDIR(os.fstat(fd).st_mode):

@@ -56,7 +56,7 @@ def main():
         window.library.table.setCurrentCell(0, 0)
         window.library.inspect()
         app.processEvents()
-        assert window.library.media.selected == str(still)
+        assert window.library.media.selected == str(still.resolve())
         window.library.media.show_still()
         pixmap = window.library.media.picture.pixmap()
         assert pixmap is not None and not pixmap.isNull()

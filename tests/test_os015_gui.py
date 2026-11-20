@@ -74,7 +74,7 @@ def main():
 
         library.table.selectRow(find_row(library.table, "sample.png"))
         app.processEvents()
-        assert library.media.selected == str(photo)
+        assert library.media.selected == str(photo.resolve())
         assert library.media.isVisible()
         pixmap = library.media.picture.pixmap()
         assert pixmap is not None and not pixmap.isNull()

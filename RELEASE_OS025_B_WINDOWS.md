@@ -15,3 +15,16 @@
 - Sem repetir T01–T22 integralmente; sem testes SMB reais, arquivos pessoais, distribuições ou instalador.
 - Sem merge ou alteração de `master` e PRs #12/#13/#14.
 - **Status:** diagnóstico pendente de CI; NO-GO para beta externa.
+
+## Execução intermediária (SHA 9866bdacd7d0bc3f010d8f5ae698099a2d355fdd)
+CI Windows: https://github.com/valleneto/Fluxor/actions/runs/44742245805
+- **NTFS sintético:** hardlink exclusivo sem overwrite PASS; Win32 CreateFileW/FlushFileBuffers no diretório PASS. Sem alegação de durabilidade absoluta em perda de energia.
+- GUI020 passou após corrigir comparação canônica; GUI014/015 avançaram até comparação canônica do arquivo, pendente de ajuste do teste.
+- Motor ainda NO-GO devido ausência de _fsync_dir Windows e retorno de caminhos com separadores Windows no plano.
+- Duplicatas OS014 falharam por expectativa de caminho canônico e SQLite auxiliar aberto.
+## Segunda correção (nova regressão pendente)
+- `fluxor_core/atomic_copy.py`: usa exatamente WinAPI testada para flush de diretório no Windows, **sem no-op**; POSIX permanece idêntico.
+- `fluxor_core/plan.py`: caminhos relativos públicos padronizados com `.as_posix()`; estrutura real usa `pathlib.Path` normalmente.
+- `fluxor_core/duplicates.py`: fechamento garantido de conexão SQLite após SELECT.
+- Ajustadas somente as expectativas canônicas de GUI014/015 e de duplicatas OS014.
+- Novos testes sintéticos de CI decidirão o próximo gate. Nenhum merge/instalador/publicação.
