@@ -46,3 +46,12 @@ CI: https://github.com/valleneto/Fluxor/actions/runs/44742996663
 - OS020 falhou por `unittest.mock.patch` exigindo `os.statvfs`, atributo inexistente no Windows (falha do teste, não da rotina sob prova).
 - Corrigida apenas a fixture usando `create=True` para simular `os.statvfs`; continua validando o fail-closed para destino somente leitura.
 - Gates Windows 10/11 físicos e segurança NTFS/SMB completa ainda NÃO homologados.
+
+## Quarta rodada — SHA d8e20474453129628dcd5032747d7f4afc21e612
+CI: https://github.com/valleneto/Fluxor/actions/runs/44743218537
+- Windows UI **6/6 PASS**; motor **5/5 PASS**; Win32 NTFS primitives **PASS**.
+- Última falha era da fixture que simulava statvfs inexistente em Windows. Corrigida usando `patch(create=True)` mantendo teste de fail-closed.
+## Próximos gates dentro da OS025-B
+- Oito novos cenários Windows com arquivos sintéticos: cópia/SHAs, colisão no-clobber, cancelamento, recuperação após verified/link, adulteração, simultaneidade e volume sem hardlink.
+- Regressão POSIX Linux para não afetar OS022/OS024-C e fluxo de cópia.
+- Ainda não há teste de Windows 10/11 físico, reinício abrupto real, SMB/NTFS de terceiros ou instalador. NO-GO beta externo até esses gates.

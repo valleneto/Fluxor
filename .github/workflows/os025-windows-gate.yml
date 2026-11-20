@@ -123,3 +123,49 @@ jobs:
       - name: Test exclusive hardlinks and directory durability (synthetic)
         shell: pwsh
         run: python -m tests.test_os025b_windows_primitives
+
+  windows-recovery:
+    name: Windows failure injection and idempotent recovery (synthetic)
+    runs-on: windows-2022
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Targeted Windows synthetic crash/recovery/no-overwrite scenarios
+        shell: pwsh
+        run: python -m tests.test_os025b_windows_recovery
+
+  linux-control:
+    name: POSIX regression control (not a macOS Cocoa claim)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Qt headless dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0 libxkbcommon0
+          python -m pip install "PySide6_Essentials==6.8.3" "PySide6_Addons==6.8.3"
+      - name: Targeted engine and OS022/024-C regressions (synthetic)
+        run: |
+          set -euo pipefail
+          python -m tests.test_os005
+          python -m tests.test_os009
+          python -m tests.test_os014
+          python -m tests.test_os020
+          python -m tests.test_os021
+          python -m tests.test_os024c_thumbnail_race
+          python -m tests.test_os015_gui
+          python -m tests.test_os022_gui
