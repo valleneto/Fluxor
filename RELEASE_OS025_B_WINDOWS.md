@@ -28,3 +28,13 @@ CI Windows: https://github.com/valleneto/Fluxor/actions/runs/44742245805
 - `fluxor_core/duplicates.py`: fechamento garantido de conexão SQLite após SELECT.
 - Ajustadas somente as expectativas canônicas de GUI014/015 e de duplicatas OS014.
 - Novos testes sintéticos de CI decidirão o próximo gate. Nenhum merge/instalador/publicação.
+
+## Segunda rodada — SHA 3c8440d8509e10971abfd85b3ee821b3da7622fe
+CI: https://github.com/valleneto/Fluxor/actions/runs/44742714596.
+- UI **6/6 PASS**; NTFS primitives PASS.
+- Motor OS009 PASS; OS005/020/021 falharam com `[Errno 9] Bad file descriptor`, causado por `os.fsync` em arquivo temporário aberto somente para leitura no Windows, após copiar metadados.
+- OS014 avançou (sem `WinError 32`); falhou somente em expectativa de caminho não canônico.
+### Terceiro ajuste
+- Abertura do temporário para flush após metadados em `r+b` **apenas no Windows**; `os.fsync` permanece obrigatório, sem fallback. POSIX permanece exatamente `rb`.
+- OS014 passa a comparar caminho resolvido de origem, sem alterar lógica de duplicatas.
+- Gate ainda depende de CI seguinte; sem distribuição, merge ou arquivos pessoais.

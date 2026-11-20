@@ -278,7 +278,7 @@ def copy_verified(base, source, folder, requested, before, mode, cancel=None,
         point("after_transfer")
         _assert_source(source, before_id)
         shutil.copystat(source, temporary, follow_symlinks=False)
-        with temporary.open("rb") as staged:
+        with temporary.open("r+b" if os.name == "nt" else "rb") as staged:
             os.fsync(staged.fileno())
         _fsync_dir(folder)
         source_sha = _hash_file(source, cancel=cancel)

@@ -103,7 +103,7 @@ def test_changed_since_index():
         os.utime(changed, ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 100_000_000))
         report = find_exact_duplicates(database)
         assert report["groups"] == []
-        assert any(item["path"] == str(changed) and "alterado" in item["error"] for item in report["errors"])
+        assert any(item["path"] == str(changed.resolve()) and "alterado" in item["error"] for item in report["errors"])
 
 
 def test_copy_snapshot():
