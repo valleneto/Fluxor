@@ -22,3 +22,10 @@ Referências:
 - https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/visibility-options
 - https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options
 - https://learn.microsoft.com/en-us/windows/apps/publish/prepare-developer-account
+
+## Empacotamento automatizado — OS025-C
+- scripts/package_msix_stage.py prepara uma copia **nao assinada** do binario em um MSIX com nome e Publisher PROVISORIOS. Bloqueado para uso em Partner Center como esta.
+- scripts/windows_binary_smoke.py testa somente inicializacao headless do FLUXOR.exe dentro de perfil descartavel, nao prova instalacao nem interacao fisica.
+- CI .github/workflows/os025c-msix-staging.yml executa primeiro tres gates: seguranca Windows (inclusive junction), UI OS022/Inspector e regressao Linux/POSIX. Build interno somente apos todos PASS.
+- Artefatos de CI mantidos tres dias, sem GitHub Release e sem upload ou publicacao na Microsoft Store.
+- Para envio verdadeiro: reservar identidade do pacote no Partner Center, substituir Name/Publisher pelo resultado oficial e fazer testes humanos de Windows 10/11 e instalacao/desinstalacao. Politica de privacidade e listagem pendentes.

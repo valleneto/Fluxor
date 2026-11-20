@@ -1,0 +1,156 @@
+name: OS025-C Windows hardened and MSIX staging (NO release)
+
+on:
+  pull_request:
+    branches: [dev/os025b-windows-ntfs-isolado-20261120]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os025c-store-staging
+  cancel-in-progress: true
+
+jobs:
+  win-safety:
+    name: Windows NTFS / junction / recovery regression
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Windows fail-closed security tests on synthetic fixtures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m compileall -q fluxor_core tests scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $tests = @(
+            'tests.test_os025c_windows_security',
+            'tests.test_os025b_windows_primitives',
+            'tests.test_os025b_windows_recovery',
+            'tests.test_os005',
+            'tests.test_os009',
+            'tests.test_os014',
+            'tests.test_os020',
+            'tests.test_os021'
+          )
+          foreach ($case in $tests) {
+            python -m $case
+            if ($LASTEXITCODE -ne 0) { throw "$case NO-GO" }
+          }
+
+  win-ui:
+    name: Windows OS022 and Inspector GUI (synthetic)
+    runs-on: windows-2022
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - run: python -m pip install "PySide6_Essentials==6.8.3" "PySide6_Addons==6.8.3"
+      - name: Qt tests and approved OS022 visual contract
+        shell: pwsh
+        run: |
+          $cases = @('tests.test_os024c_thumbnail_race',
+                     'tests.test_os014_gui','tests.test_os015_gui',
+                     'tests.test_os020_gui','tests.test_os021_gui',
+                     'tests.test_os022_gui')
+          foreach ($case in $cases) {
+            python -m $case
+            if ($LASTEXITCODE -ne 0) { throw "$case NO-GO" }
+          }
+
+  linux-control:
+    name: POSIX safety regression - preserve OS024-C behavior
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Qt libraries and pinned PySide6
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0 libxkbcommon0
+          python -m pip install "PySide6_Essentials==6.8.3" "PySide6_Addons==6.8.3"
+      - name: POSIX targeted controls; no complete T01-T22 repeat
+        run: |
+          set -euo pipefail
+          python -m tests.test_os005
+          python -m tests.test_os009
+          python -m tests.test_os014
+          python -m tests.test_os020
+          python -m tests.test_os021
+          python -m tests.test_os024c_thumbnail_race
+          python -m tests.test_os015_gui
+          python -m tests.test_os022_gui
+
+  build-internal-msix:
+    name: Internal Windows executable and unsigned MSIX structure
+    needs: [win-safety, win-ui, linux-control]
+    runs-on: windows-2022
+    timeout-minutes: 35
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Pin GUI and Windows packaging tools
+        shell: pwsh
+        run: |
+          python -m pip install "PySide6_Essentials==6.8.3" "PySide6_Addons==6.8.3" "pyinstaller==6.16.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build FLUXOR OS022 executable without installing
+        shell: pwsh
+        run: |
+          $pyiArgs = @('--noconfirm','--clean','--onedir','--windowed',
+                       '--name','FLUXOR',
+                       '--hidden-import','PySide6.QtMultimedia',
+                       '--hidden-import','PySide6.QtMultimediaWidgets',
+                       '--collect-submodules','fluxor_core',
+                       '--add-data','assets/fluxor_logo.png;assets',
+                       'fluxor_iniciar.py')
+          python -m PyInstaller @pyiArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Test-Path "dist/FLUXOR/FLUXOR.exe")) { throw "No executable" }
+      - name: Headless binary smoke with synthetic profile
+        shell: pwsh
+        run: |
+          python scripts/windows_binary_smoke.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build development-identity unsigned MSIX and verify archive
+        shell: pwsh
+        run: |
+          $kitRoot = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
+          $sdkTools = @(Get-ChildItem $kitRoot -Filter makeappx.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\x64\\makeappx.exe$' } | Sort-Object FullName -Descending)
+          if ($sdkTools.Count -lt 1) { throw "NO-GO Windows SDK MakeAppx missing" }
+          python scripts/package_msix_stage.py --dist "dist/FLUXOR" --staging "build/msix-internal" --output "artifacts/FLUXOR-Development-Unsigned-x64.msix" --makeappx "$($sdkTools[0].FullName)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path "dist/FLUXOR" -DestinationPath "artifacts/FLUXOR-portable-internal-x64.zip"
+          Copy-Item "docs/OS025C_INTERNAL_ARTIFACT_README.txt" "artifacts/README_INTERNAL.txt"
+      - name: Retain gated internal artifacts briefly; never create a release
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxor-os025c-INTERNAL-NOT-STORE
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            artifacts/FLUXOR-Development-Unsigned-x64.msix
+            artifacts/FLUXOR-portable-internal-x64.zip
+            artifacts/SHA256_INTERNAL.txt
+            artifacts/README_INTERNAL.txt
