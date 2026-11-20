@@ -5,6 +5,7 @@ Runs exclusively with synthetic files and a temporary HOME.
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -28,7 +29,10 @@ def main():
         index_folder(source, database)
 
         app = QApplication.instance() or QApplication([])
-        window = Inicio()
+        # HOME alone does not override Path.home() on Windows (USERPROFILE).
+        # Redirect only the synthetic fixture's initial path lookup.
+        with patch('pathlib.Path.home', return_value=Path(temp)):
+            window = Inicio()
         window.show()
         app.processEvents()
         assert window.pages.count() == 3

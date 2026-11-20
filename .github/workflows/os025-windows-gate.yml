@@ -2,7 +2,7 @@ name: OS025 Windows compatibility gate (synthetic, no release)
 
 on:
   pull_request:
-    branches: [dev/os024c-gui015-inspector-20261119]
+    branches: [dev/os024c-gui015-inspector-20261119, dev/os025-windows-diagnostico-20261120]
   workflow_dispatch:
 
 permissions:
@@ -107,3 +107,19 @@ jobs:
             exit 1
           }
           Write-Host "Windows engine synthetic checks PASS"
+
+  windows-primitives:
+    name: Windows NTFS atomic primitives (no product changes)
+    runs-on: windows-2022
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Test exclusive hardlinks and directory durability (synthetic)
+        shell: pwsh
+        run: python -m tests.test_os025b_windows_primitives
