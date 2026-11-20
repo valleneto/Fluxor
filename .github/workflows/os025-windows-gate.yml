@@ -1,0 +1,109 @@
+name: OS025 Windows compatibility gate (synthetic, no release)
+
+on:
+  pull_request:
+    branches: [dev/os024c-gui015-inspector-20261119]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os025-windows-gate
+  cancel-in-progress: true
+
+jobs:
+  windows-ui:
+    name: Windows UI and Inspector (synthetic tests)
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Install pinned Qt runtime
+        run: python -m pip install "PySide6_Essentials==6.8.3" "PySide6_Addons==6.8.3"
+      - name: Syntax and Windows platform
+        shell: pwsh
+        run: |
+          python -c "import platform,sys; print('WIN-PROBE',platform.platform(),sys.version)"
+          python -m compileall -q fluxor_core tests fluxor_iniciar.py fluxor_media.py fluxor_biblioteca.py fluxor_app_integrado.py fluxor_folder_picker.py fluxor_network.py
+      - name: Synthetic UI regression — run every case and report failures
+        shell: pwsh
+        run: |
+          $cases = @(
+            'tests.test_os024c_thumbnail_race',
+            'tests.test_os014_gui',
+            'tests.test_os015_gui',
+            'tests.test_os020_gui',
+            'tests.test_os021_gui',
+            'tests.test_os022_gui'
+          )
+          $failed = @()
+          foreach ($test in $cases) {
+            Write-Host "::group::$test"
+            & python -m $test
+            $rc = $LASTEXITCODE
+            Write-Host "::endgroup::"
+            if ($rc -ne 0) {
+              Write-Host "::error::$test failed with exit $rc"
+              $failed += $test
+            } else {
+              Write-Host "PASS $test"
+            }
+          }
+          if ($failed.Count -gt 0) {
+            Write-Host "NO-GO Windows UI failed: $($failed -join ', ')"
+            exit 1
+          }
+          Write-Host "Windows UI synthetic checks PASS"
+
+  windows-engine:
+    name: Windows copy engine (synthetic; reject unsafe portability)
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Show Windows platform and fail-closed primitive
+        shell: pwsh
+        run: |
+          python -c "import os,platform; print('WIN-PROBE',platform.platform()); print('O_DIRECTORY?',hasattr(os,'O_DIRECTORY')); print('O_NOFOLLOW?',hasattr(os,'O_NOFOLLOW')); print('os.link?',hasattr(os,'link'))"
+      - name: Synthetic copy/rollback/criteria — collect all failures
+        shell: pwsh
+        run: |
+          $cases = @(
+            'tests.test_os005',
+            'tests.test_os009',
+            'tests.test_os014',
+            'tests.test_os020',
+            'tests.test_os021'
+          )
+          $failed = @()
+          foreach ($test in $cases) {
+            Write-Host "::group::$test"
+            & python -m $test
+            $rc = $LASTEXITCODE
+            Write-Host "::endgroup::"
+            if ($rc -ne 0) {
+              Write-Host "::error::$test failed with exit $rc"
+              $failed += $test
+            } else {
+              Write-Host "PASS $test"
+            }
+          }
+          if ($failed.Count -gt 0) {
+            Write-Host "NO-GO Windows engine failed: $($failed -join ', ')"
+            exit 1
+          }
+          Write-Host "Windows engine synthetic checks PASS"
