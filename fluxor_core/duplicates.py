@@ -5,6 +5,7 @@ from pathlib import Path
 from collections import defaultdict
 import hashlib
 from fluxor_core.media_policy import cloud_risk
+from fluxor_core.windows_safety import reject_windows_reparse
 
 
 def _hash_with_cancel(path, cancel):
@@ -41,6 +42,7 @@ def find_exact_duplicates(database_path, cancel=None, progress=None):
                 break
             try:
                 item = Path(path)
+                reject_windows_reparse(item)
                 if cloud_risk(item):
                     errors.append({"path": path, "error": "Possível arquivo em nuvem; ignorado para evitar download."})
                     continue

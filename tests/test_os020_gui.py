@@ -54,7 +54,7 @@ def main():
         picker.address.setText(str(path / "loop"))
         picker._go_address()
         wait_until(app, lambda: not picker._busy)
-        assert "link simbólico" in picker.status.text(), picker.status.text()
+        assert ("link simbólico" in picker.status.text() or "reparse point" in picker.status.text()), picker.status.text()
 
         picker.address.setText(str(path))
         picker._go_address()

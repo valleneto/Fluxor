@@ -11,6 +11,7 @@ from fluxor_core.criteria import (MODOS_LEGADOS, normalizar_modo, categoria_para
 from fluxor_core.organizer import validar_pastas
 from fluxor_core.atomic_copy import copy_verified, recover_transactions, JOURNAL_DIR, is_managed_temp_name
 from fluxor_core.merge import require_safe_target, ensure_no_links, candidates, matching_content, preview_entries
+from fluxor_core.windows_safety import reject_windows_reparse
 
 MODOS = MODOS_LEGADOS
 
@@ -68,10 +69,25 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
                 bloqueios.append(f"Possível ciclo de pasta/atalho evitado: {current}")
                 continue
             seen_dirs.add(identity)
+        def eligible_subdirectory(name):
+            if name == JOURNAL_DIR or name.lower().endswith(
+                (".app", ".bundle", ".photoslibrary", ".pkg")
+            ):
+                return False
+            candidate = current / name
+            # Known symlinks remain intentionally SKIPPED, as in OS020.
+            # Junctions (not Path.is_symlink() on Python 3.11) block the preview.
+            if candidate.is_symlink():
+                return False
+            try:
+                reject_windows_reparse(candidate)
+            except OSError as error:
+                bloqueios.append(str(error))
+                return False
+            return not candidate.is_symlink()
+
         subpastas[:] = sorted(
-            d for d in subpastas
-            if d != JOURNAL_DIR and not (Path(pasta) / d).is_symlink()
-            and not d.lower().endswith((".app", ".bundle", ".photoslibrary", ".pkg"))
+            d for d in subpastas if eligible_subdirectory(d)
         ) if recursivo else []
         for nome in sorted(nomes):
             if is_managed_temp_name(nome) or nome == ".fluxor-organizacao.json":
@@ -82,6 +98,7 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
             if item.is_symlink():
                 continue
             try:
+                reject_windows_reparse(item)
                 info = item.stat()
                 if not filemode.S_ISREG(info.st_mode):
                     continue
@@ -196,6 +213,7 @@ def executar_plano(plano, progresso=None, cancelar=None):
         criado = False
         try:
             # Revalidate every source to prevent copying outside the scanned tree.
+            reject_windows_reparse(arquivo)
             real = arquivo.resolve()
             if real != origem and origem not in real.parents:
                 raise ValueError("Arquivo fora da origem.")

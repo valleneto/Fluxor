@@ -2,10 +2,16 @@ from pathlib import Path
 import shutil
 
 from fluxor_core.classifier import classificar_arquivo
+from fluxor_core.windows_safety import reject_windows_reparse, require_local_ntfs
 
 
 def validar_pastas(pasta_origem, pasta_destino):
     """Rejeita pastas sobrepostas antes de criar qualquer destino."""
+    # Validate raw spelling first; resolve() would hide NTFS junctions.
+    reject_windows_reparse(Path(pasta_origem).expanduser())
+    reject_windows_reparse(Path(pasta_destino).expanduser())
+    require_local_ntfs(Path(pasta_origem).expanduser())
+    require_local_ntfs(Path(pasta_destino).expanduser())
     origem = Path(pasta_origem).expanduser().resolve()
     destino = Path(pasta_destino).expanduser().resolve()
 

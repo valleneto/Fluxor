@@ -9,6 +9,7 @@ from contextlib import closing
 from pathlib import Path
 
 from fluxor_core.classifier import classificar_arquivo
+from fluxor_core.windows_safety import reject_windows_reparse, require_local_ntfs
 
 
 SCHEMA = """
@@ -39,6 +40,8 @@ def suggest_project(relative_path):
 
 
 def index_folder(root, database_path, recursive=True, cancel=None, progress=None):
+    reject_windows_reparse(Path(root).expanduser())
+    require_local_ntfs(Path(root).expanduser())
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise ValueError("A origem deve ser uma pasta existente.")
@@ -67,6 +70,7 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                 if cancel and cancel():
                     raise InterruptedError("Indexação cancelada; transação revertida.")
                 directory = Path(folder)
+                reject_windows_reparse(directory)
                 if len(directory.relative_to(root).parts) > max_depth:
                     subdirs[:] = []
                     raise OSError(f"Indexação incompleta: profundidade excedida em {folder}")
@@ -77,6 +81,11 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                         subdirs[:] = []
                         raise OSError(f"Indexação incompleta: ciclo detectado em {folder}")
                     seen_dirs.add(key)
+                if recursive:
+                    for name in subdirs:
+                        candidate = directory / name
+                        if not candidate.is_symlink():
+                            reject_windows_reparse(candidate)
                 subdirs[:] = sorted(
                     name for name in subdirs
                     if not (Path(folder) / name).is_symlink()
@@ -89,6 +98,7 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                     if item.is_symlink():
                         continue
                     try:
+                        reject_windows_reparse(item)
                         info = item.stat()
                         if not stat.S_ISREG(info.st_mode):
                             continue
