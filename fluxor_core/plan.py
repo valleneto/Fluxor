@@ -75,6 +75,10 @@ def planejar(origem, destino, modo="Por tipo", recursivo=True, cancelar=None, ac
             ):
                 return False
             candidate = current / name
+            # Known symlinks remain intentionally SKIPPED, as in OS020.
+            # Junctions (not Path.is_symlink() on Python 3.11) block the preview.
+            if candidate.is_symlink():
+                return False
             try:
                 reject_windows_reparse(candidate)
             except OSError as error:

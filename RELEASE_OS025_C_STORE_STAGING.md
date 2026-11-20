@@ -29,3 +29,9 @@ Referências:
 - CI .github/workflows/os025c-msix-staging.yml executa primeiro tres gates: seguranca Windows (inclusive junction), UI OS022/Inspector e regressao Linux/POSIX. Build interno somente apos todos PASS.
 - Artefatos de CI mantidos tres dias, sem GitHub Release e sem upload ou publicacao na Microsoft Store.
 - Para envio verdadeiro: reservar identidade do pacote no Partner Center, substituir Name/Publisher pelo resultado oficial e fazer testes humanos de Windows 10/11 e instalacao/desinstalacao. Politica de privacidade e listagem pendentes.
+
+## Execucao inicial OS025-C (SHA 13d4f2c5977ba1f7d6c5427b5a3383f0e476b0a4)
+- Windows reparse/junction/UNC PASS; NTFS primitivas PASS; recuperacao 8/8 PASS.
+- Teste legado OS020 falhou: symlink comum no conjunto sintetico passou a marcar previa como incompleta.
+- Correcao minima: symlink identificado continua ignorado como na OS020; junction e reparse nao-symlink continuam bloqueando a previa.
+- Nova execucao CI obrigatoria; nao publicar ate todos os gates PASS.

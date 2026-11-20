@@ -83,7 +83,9 @@ def index_folder(root, database_path, recursive=True, cancel=None, progress=None
                     seen_dirs.add(key)
                 if recursive:
                     for name in subdirs:
-                        reject_windows_reparse(directory / name)
+                        candidate = directory / name
+                        if not candidate.is_symlink():
+                            reject_windows_reparse(candidate)
                 subdirs[:] = sorted(
                     name for name in subdirs
                     if not (Path(folder) / name).is_symlink()
